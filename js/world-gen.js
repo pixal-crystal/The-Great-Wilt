@@ -139,6 +139,7 @@ function genRegion(id) {
     const R = REGIONS[id];
     W.npcs.push({ kind:"merchant", char:R.merchant.char, name:R.merchant.name, x:W.camp.x + 52, y:W.camp.y + 20, dir:1 });
     if (R.sanctuary) W.npcs.push({ kind:"elder", char:CHAR.elder, name:"Root-Singer Elder", x:W.camp.x - 44, y:W.camp.y + 22, dir:2 });
+    W.npcs.push({ kind:"questGiver", char:CHAR.questGiver, name:"Chronicle-Keeper Vael", x:W.camp.x - 16, y:W.camp.y - 30, dir:0 });
     // nudge NPCs off the path to the nearest clear, reachable tile
     const offPath = (tx, ty) => inb(tx, ty) && W.T[ix(tx, ty)] === T_WALK && !W.path[ix(tx, ty)] && !W.objAt[ix(tx, ty)] && reach[ix(tx, ty)] >= 0;
     for (const n of W.npcs) {

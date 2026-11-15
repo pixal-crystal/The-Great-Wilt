@@ -14,7 +14,7 @@ function frame(now) {
   pressed = {};
   requestAnimationFrame(frame);
 }
-[PATHS.icons32, PATHS.icons16, PATHS.tiles16, PATHS.tiles32, ...[16,4,3,9,31,1,14,27,19].map(charPath),
- ...Object.values(TINY).map(s => PATHS.tiny + s.file), ...Object.values(BIGS).map(s => PATHS.dungeon + s.file)].forEach(img);
+[PATHS.icons32, PATHS.icons16, PATHS.tiles16, PATHS.tiles32, ...[16, 4, 3, 9, 31, 1, 14, 27, 19].map(charPath),
+...Object.values(TINY).map(s => PATHS.tiny + s.file), ...Object.values(BIGS).map(s => PATHS.dungeon + s.file)].forEach(img);
 showTitle();
 requestAnimationFrame(frame);

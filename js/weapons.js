@@ -104,7 +104,7 @@ const isSunlit = id => !!(REGIONS[id] && REGIONS[id].sunlit);
 /* Loud pistons and capacitors alert predators from further away. */
 function foeNoticeRange(F) {
   if (sword().calmBeasts && F.beast) return 0;
-  return 90 + 18 * swordTech();
+  return 90 + 18 * swordTech() + (G.wary && F.beast ? 15 : 0);
 }
 function acquireSword(id, quiet) {
   ensureArms();
@@ -165,7 +165,7 @@ function updateFlowers(dt) {
 }
 function drawFlowers(camX, camY) {
   for (const f of FLOWERS) {
-    const a = f.t < 3 ? 1 : 1 - (f.t - 3), X = Math.round(f.x - camX), Y = Math.round(f.y - camY);
+    const a = f.t < 3 ? 1 : 1 - (f.t - 3), X = Math.round(f.x) - camX, Y = Math.round(f.y) - camY;
     ctx.globalAlpha = Math.max(0, a) * 0.9; ctx.fillStyle = f.c;
     ctx.fillRect(X - 1, Y, 3, 1); ctx.fillRect(X, Y - 1, 1, 3);
     ctx.fillStyle = "#fff"; ctx.fillRect(X, Y, 1, 1);
@@ -223,6 +223,7 @@ function swordDamage(f, base) {
 function armorOf(f) { return Math.max(0, (f.armor || 0) - (f.armorCrack || 0)); }
 /* One ricochet strike against a foe — replaces the plain hit. */
 function swordStrike(f, spd) {
+  if (f.F.fixedDmg) { const d = Math.max(0, f.F.fixedDmg - armorOf(f)), col = TIER_COL[tierOf(spd)]; if (!d) { damageFoe(f, 0, { col }); float(f.x, f.y - 22, "BLOCKED — armor!", "#aaa"); return; } damageFoe(f, d, { col }); return; }
   let dmg = swordDamage(f, hitDamage(spd));
   const ar = swordPierces() ? 0 : armorOf(f);
   dmg = Math.max(0, dmg - ar);                                // Bark-Armor soaks damage
@@ -332,7 +333,7 @@ function drawSwordHud() {
 
 
 /* ---------- the Strider-Caravan workbench & armory ---------- */
-const atWorkbench = () => !!(M && G && G.loc !== "roots" && PL && Math.hypot(PL.x - M.camp.x, PL.y - M.camp.y) < 90);
+const atWorkbench = () => (typeof isAtCamp === "function" ? isAtCamp() : !!(M && G && G.loc !== "roots" && PL && Math.hypot(PL.x - M.camp.x, PL.y - M.camp.y) < 90));
 function salvageSword(id) { const c = SWORDS[id].salvage; if (!atWorkbench() || !c || !canAfford(c)) return; pay(c); acquireSword(id); save(); refreshPanel(); }
 function craftPart(id) { const c = PARTS[id].cost; if (!atWorkbench() || G.arms.parts.includes(id) || !canAfford(c)) return; pay(c); G.arms.parts.push(id); toast(`Crafted: ${PARTS[id].name}`, "#ffe08a"); save(); refreshPanel(); }
 function installPart(id) { if (!G.arms.parts.includes(id)) return; G.arms.slots[PARTS[id].slot] = id; save(); refreshPanel(); }
@@ -349,7 +350,7 @@ function armoryPanel() {
   ensureArms();
   const S = sword(), id = G.arms.equipped, lv = swordLvOf(id), bench = atWorkbench();
   const benchNote = bench ? `<span style="color:#6fcf6a">At the caravan workbench — crafting, salvaging and upgrades available.</span>` : `<span class="muted">Swap blades and parts anywhere. Crafting, salvaging and upgrades need the Strider-Caravan workbench (stand by your camp).</span>`;
-  const blades = [...FRAME_IDS, ...RELIC_IDS].map(k => {
+  const blades = [...(G.arms.owned.includes("trainer") ? ["trainer"] : []), ...FRAME_IDS, ...RELIC_IDS].map(k => {
     const W = SWORDS[k], own = G.arms.owned.includes(k), on = k === id, L = swordLvOf(k);
     const act = on ? `<span class="small" style="color:#6fcf6a">Wielding</span>` : own ? `<button onclick="equipSword('${k}')">Wield</button>`
       : W.relic ? `<span class="small muted">Relic quest: ${W.quest}</span>` : `<button ${bench && canAfford(W.salvage) ? "" : "disabled"} onclick="salvageSword('${k}')">Salvage — ${costHTML(W.salvage)}</button>`;

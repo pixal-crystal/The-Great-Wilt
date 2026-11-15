@@ -3,7 +3,7 @@ const ICON = {
   echo:IC(20,14), hp:IC(41,2), stamina:IC(41,0), day:IC(0,11), symb:IC(41,12), lock:IC(7,15), warden:IC(53,15), clear:IC(57,0), chest:IC(0,5), sword:IC(45,0), organs:IC(14,11),
 };
 const RES_NAMES = { sap:"Amber Sap", seeds:"Seeds", rareSeeds:"Rare Seeds", scrap:"Pre-collapse Scrap", crystal:"Moss Crystal", spores:"Spores", coins:"Barter Bits", potions:"Sap Tonic", bombs:"Resin Bomb", organs:"Monster Organ" };
-const CHAR = { player:16, kaelen:4, sylva:3, bram:9, elder:31 };
+const CHAR = { player:16, kaelen:4, sylva:3, bram:9, elder:31, questGiver:19 };
 const REGIONS = {
   sun: { name:"The Sun-Crown", icon:IC(61,13), pos:[480,92], industrial:true, sanctuary:false, sunlit:true,
     desc:"High-altitude canopy bathed in golden light; rope-bridges over open sky.",
@@ -27,7 +27,8 @@ const REGIONS = {
     shop:[["graft","prism",44],["graft","gillFronds",16],["part","piston",20],["part","rubber",12],["item","bombs",8],["item","potions",7]], tint:"rgba(90,210,255,0.08)" },
 };
 const ROOTS = { name:"The Iron Roots", icon:IC(15,13), pos:[480,560], dark:true, foes:["rootDemon","bloodHorror","rootDemon","husk"], yield:{ scrap:[1,3], coins:[4,8] }, nodes:{ scrap:3 } };
-const AREA = id => id === "roots" ? ROOTS : REGIONS[id];
+const REGION_REQ_LVL = { trunk:1, sun:2, glass:3, silt:5, roots:8 };
+const AREA = id => id === "roots" ? ROOTS : id === "tutorial" ? TUT : REGIONS[id];
 const EDGES = [["sun","trunk"],["trunk","silt"],["trunk","glass"],["silt","glass"],["silt","roots"]];
 const EXITS = {
   trunk:[{ side:"N", at:28, to:"sun" }, { side:"S", at:14, to:"silt" }, { side:"S", at:42, to:"glass" }],

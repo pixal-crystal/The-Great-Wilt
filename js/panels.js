@@ -32,19 +32,41 @@ function buy(kind, key, price) { if (G.res.coins < price) return; G.res.coins -=
 function sell(k, pr) { if (G.res[k] < 1) return; G.res[k]--; G.res.coins += pr; refreshPanel(); }
 function refineryRecipes() { const k = G.companion === "kaelen" ? 1 : 0; return [["bombs", { sap:Math.max(1, 2 - k), crystal:1 }], ["potions", { sap:Math.max(1, 2 - k), seeds:1 }]]; }
 function panelTabsHTML(activeTab) {
-  const pK = keyLabel((BINDINGS.pack && BINDINGS.pack[0]) || "e");
-  const qK = keyLabel((BINDINGS.quests && BINDINGS.quests[0]) || "q");
+  const pK = keyLabel((BINDINGS.pack && BINDINGS.pack[0]) || "tab");
   const mK = keyLabel((BINDINGS.pulse && BINDINGS.pulse[0]) || "m");
   const oK = keyLabel((BINDINGS.settings && BINDINGS.settings[0]) || "o");
-  return `<div class="panel-tabs">
+  const atCamp = typeof isAtCamp === "function" && isAtCamp();
+  const nearVael = (typeof isNearNPC === "function" && isNearNPC("questGiver")) || atCamp;
+
+  let tabs = `
     <button class="panel-tab ${activeTab === 'inv' ? 'active' : ''}" onclick="openPanel(invPanel)">${iconHTML(ICON.chest, 16)} Inventory [${pK}]</button>
-    <button class="panel-tab ${activeTab === 'quests' ? 'active' : ''}" onclick="openPanel(questsPanel)">${iconHTML(ICON.echo, 16)} Quests [${qK}]</button>
-    <button class="panel-tab ${activeTab === 'armory' ? 'active' : ''}" onclick="openPanel(armoryPanel)">${iconHTML(sword().icon, 16)} Armory</button>
-    <button class="panel-tab ${activeTab === 'camp' ? 'active' : ''}" onclick="openPanel(campPanel)">${tileHTML("tent", 0.35)} Caravan</button>
-    <button class="panel-tab ${activeTab === 'pulse' ? 'active' : ''}" onclick="openPanel(pulsePanel)">${iconHTML(REGIONS.sun.icon, 16)} The Pulse [${mK}]</button>
+    <button class="panel-tab ${activeTab === 'pulse' ? 'active' : ''}" onclick="openPanel(pulsePanel)">${iconHTML(REGIONS.sun ? REGIONS.sun.icon : ICON.day, 16)} The Pulse [${mK}]</button>
+  `;
+
+  if (atCamp) {
+    tabs += `
+      <button class="panel-tab ${activeTab === 'camp' ? 'active' : ''}" onclick="openPanel(campPanel)">${tileHTML("tent", 0.35)} Caravan</button>
+      <button class="panel-tab ${activeTab === 'armory' ? 'active' : ''}" onclick="openPanel(armoryPanel)">${iconHTML(sword().icon, 16)} Armory</button>
+    `;
+  } else {
+    tabs += `
+      <button class="panel-tab locked" disabled title="Only accessible at the Strider-Caravan camp">${tileHTML("tent", 0.35)} Caravan <span class="tab-loc-tag">At Camp</span></button>
+      <button class="panel-tab locked" disabled title="Only accessible at the Strider-Caravan workbench at camp">${iconHTML(sword().icon, 16)} Armory <span class="tab-loc-tag">At Camp</span></button>
+    `;
+  }
+
+  if (nearVael) {
+    tabs += `<button class="panel-tab ${activeTab === 'quests' ? 'active' : ''}" onclick="openPanel(questsPanel)">${iconHTML(ICON.echo, 16)} Quests</button>`;
+  } else {
+    tabs += `<button class="panel-tab locked" disabled title="Only accessible from Chronicle-Keeper Vael at camp">${iconHTML(ICON.echo, 16)} Quests <span class="tab-loc-tag">At Vael</span></button>`;
+  }
+
+  tabs += `
     <button class="panel-tab ${activeTab === 'tutorial' ? 'active' : ''}" onclick="openPanel(tutorialPanel)">📖 Field Guide</button>
     <button class="panel-tab ${activeTab === 'settings' ? 'active' : ''}" onclick="openPanel(settingsPanel)">⚙ Settings [${oK}]</button>
-  </div>`;
+  `;
+
+  return `<div class="panel-tabs">${tabs}</div>`;
 }
 
 function questsPanel() {
@@ -120,16 +142,7 @@ function questsPanel() {
     <div style="flex:1"><b>${b.name}</b>: ${b.done ? `<span style="color:#6fcf6a">Breached &amp; Echo Decoded</span>` : (G.companion === "bram" ? `<span style="color:#ffe46a">Bram &amp; Pip ready — locate mossy bunker door</span>` : `<span class="muted">Bring Bram &amp; Pip to crack the seal</span>`)}</div>
   </div>`).join("");
 
-  const echoLogs = Object.entries(ECHOES).map(([id, text]) => {
-    const hasEcho = G.echoes.includes(id) || G.echoes.includes(id + "Bunker") || (G.regions[id] && (G.regions[id].echo || G.regions[id].bunker));
-    const title = id.toUpperCase() + " SECTOR FREQUENCY";
-    if (hasEcho) {
-      return `<div class="echo-log"><b>[DECODED // ${title}]</b>\n${esc(text)}</div>`;
-    }
-    return `<div class="echo-log unfound"><b>[ENCRYPTED // ${title}]</b>\nSignal locked. Retrieve this Root Echo via combat, ritual, or bunker exploration.</div>`;
-  }).join("");
-
-  return `${panelTabsHTML("quests")}
+  return `<div class="row" style="gap:12px;margin-bottom:12px;align-items:center;background:#181818;border:2px solid #5a4b28;border-radius:4px;padding:8px 12px">${charHTML(CHAR.questGiver, 3)}<div><h2 style="margin:0;color:#ffe46a">Caravan Chronicle &amp; Contracts</h2><div class="small muted">Recorded by Chronicle-Keeper Vael · Strider-Caravan</div></div></div>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
       <div>
         <h2>Quests &amp; Objectives</h2>
@@ -209,10 +222,6 @@ function questsPanel() {
       </div>
     </div>
 
-    <!-- LORE ARCHIVE -->
-    <h3>Decoded Root Echoes Archive</h3>
-    <div style="display:flex;flex-direction:column;gap:6px">${echoLogs}</div>
-
     <!-- EXPEDITION LOG -->
     <h3>Recent Expedition Log</h3>
     <div class="small muted" style="max-height:120px;overflow:auto;background:#090909;border:1px solid #333;padding:8px 10px;border-radius:3px">
@@ -225,6 +234,16 @@ function campPanel() {
   const comps = Object.entries(COMPANIONS).map(([id, C]) => `<div class="card ${G.companion === id ? "on" : ""}"><div class="row">${charHTML(C.char, 3)}<div style="flex:1"><b>${C.name}</b><div class="small muted">${C.role}</div></div></div>
     <div class="small" style="margin:4px 0">${C.blurb}</div><ul class="small muted" style="margin:0;padding-left:16px">${C.perks.map(p => `<li>${p}</li>`).join("")}</ul>${compProgressHTML(id)}
     <div style="margin-top:6px">${G.companion === id ? `<span class="small" style="color:#6fcf6a">Travelling with you</span>` : `<button onclick="G.companion='${id}';refreshPanel()">Bring along</button>`}</div></div>`).join("");
+  const hRank = G.hpUps || 0;
+  const hCost = hpUpgradeCost();
+  const canAffordHp = canAfford(hCost);
+  const hpCampCard = `<div class="card" style="border-color:#ff6b6b55;background:#1a0909"><div class="row">${iconHTML(ICON.hp, 32)}<div style="flex:1"><b>Heartwood Infusion (Rank ${hRank})</b><div class="small muted">Reinforce bark-flesh to expand max health (+2 HP). Max HP: ${maxHp()}.</div></div></div>
+    <div style="margin-top:6px"><button ${canAffordHp ? "" : "disabled"} onclick="upgradeHp()">Upgrade Health — ${costHTML(hCost)}</button></div></div>`;
+  const rank = G.staminaUps || 0;
+  const sCost = staminaUpgradeCost();
+  const canAffordSta = canAfford(sCost);
+  const staCampCard = `<div class="card" style="border-color:#5fb3ff55;background:#09121a"><div class="row">${iconHTML(ICON.stamina, 32)}<div style="flex:1"><b>Spore-Lung Conditioning (Rank ${rank})</b><div class="small muted">Expand sprint and combat breath reserves. Sprint: ${maxWorldStamina()} · Combat: ${maxStamina()}.</div></div></div>
+    <div style="margin-top:6px"><button ${canAffordSta ? "" : "disabled"} onclick="upgradeStamina()">Upgrade Stamina — ${costHTML(sCost)}</button></div></div>`;
   const ups = Object.entries(UPGRADES).map(([id, U]) => `<div class="card"><div class="row">${iconHTML(U.icon, 32)}<div style="flex:1"><b>${U.name}</b><div class="small muted">${U.desc}</div></div></div>
     <div style="margin-top:6px">${G.upgrades[id] ? `<span class="small" style="color:#6fcf6a">Built</span>` : `<button ${canAfford(U.cost) ? "" : "disabled"} onclick="build('${id}')">Build — ${costHTML(U.cost)}</button>`}</div></div>`).join("");
   const breed = G.upgrades.greenhouse ? BREED.map(([gid, cost]) => { const g = GRAFTS[gid], own = G.owned.includes(gid);
@@ -234,8 +253,7 @@ function campPanel() {
     <div class="row">${tileHTML("tent", 0.5)}<div><h2>The Strider-Caravan</h2><div class="small muted">Your rolling home on the canopy highways.</div></div></div>
     <div class="row" style="margin-top:8px"><button ${G.res.potions < 1 || G.hp >= maxHp() ? "disabled" : ""} onclick="G.res.potions--;G.hp=Math.min(maxHp(),G.hp+4);refreshPanel()">${iconHTML(ICON.potions, 20)}Drink Sap Tonic (+4 HP)</button>
     ${G.upgrades.greenhouse ? `<button onclick="openPanel(loadoutPanel)">${iconHTML(IC(15,7), 20)}Re-weave grafts</button>` : ""}</div>
-    <h3>Companions</h3><div class="grid">${comps}</div><h3>Upgrades</h3><div class="grid">${ups}</div>
-    <h3>Greenhouse breeding</h3><div class="grid">${breed}</div><h3>Refinery</h3><div class="row">${refine}</div>`;
+    <h3>Companions</h3><div class="grid">${comps}</div><h3>Upgrades</h3><div class="grid">${ups}${hpCampCard}${staCampCard}</div><h3>Greenhouse breeding</h3><div class="grid">${breed}</div><h3>Refinery</h3><div class="row">${refine}</div>`;
 }
 function build(id) { const U = UPGRADES[id]; if (!canAfford(U.cost)) return; pay(U.cost); G.upgrades[id] = true; toast(`Built: ${U.name}`, "#9ad04a"); refreshPanel(); }
 function breedGraft(gid) { const c = BREED.find(b => b[0] === gid)[1]; if (!canAfford(c)) return; pay(c); G.owned.push(gid); toast(`Bred: ${GRAFTS[gid].name}`, "#9ad04a"); refreshPanel(); }
@@ -247,7 +265,7 @@ function invPanel() {
     <h3>Level &amp; Growth</h3>${statsHTML()}
     <h3>Grafts</h3>${symbMeterHTML()}<div style="margin-top:6px">${slotsHTML(false)}</div>
     <div class="small muted" style="margin-top:4px">Re-weave grafts with a Root-Singer Elder (Twilight Trunk, Silt-Floor) or at camp once the Greenhouse is built. Owned: ${G.owned.map(id => GRAFTS[id].name).join(", ")}</div>
-    <h3>Blade</h3><div class="card row">${iconHTML(sword().icon, 32)}<div style="flex:1"><b style="color:${sword().col}">${sword().name}</b> <span class="tag">${sword().style}</span><div class="small muted">${sword().perk}</div><div class="small">Parts: ${Object.entries(G.arms.slots).map(([s, id]) => id ? PARTS[id].name : `<span class="muted">no ${s}</span>`).join(" · ")}${swordBio() ? ` · <span style="color:#7fd26a">Bio-Graft ${swordBio()}</span>` : ""}${swordTech() ? ` · <span style="color:#ffb35a">Tech-Forge ${swordTech()}</span>` : ""}</div></div><button onclick="openPanel(armoryPanel)">Armory</button></div>
+    <h3>Blade</h3><div class="card row">${iconHTML(sword().icon, 32)}<div style="flex:1"><b style="color:${sword().col}">${sword().name}</b> <span class="tag">${sword().style}</span><div class="small muted">${sword().perk}</div><div class="small">Parts: ${Object.entries(G.arms.slots).map(([s, id]) => id ? PARTS[id].name : `<span class="muted">no ${s}</span>`).join(" · ")}${swordBio() ? ` · <span style="color:#7fd26a">Bio-Graft ${swordBio()}</span>` : ""}${swordTech() ? ` · <span style="color:#ffb35a">Tech-Forge ${swordTech()}</span>` : ""}</div></div>${typeof isAtCamp === "function" && isAtCamp() ? `<button onclick="openPanel(armoryPanel)">Armory Workbench</button>` : `<button disabled title="Only accessible at the Strider-Caravan workbench at camp">Workbench (At Camp)</button>`}</div>
     <h3>Pack</h3><div class="grid small">${res}</div>
     <h3>Fighting (Kinetic Ricochet)</h3><div class="small">Drag back from anywhere and release to launch yourself — time slows while you aim. Speed is power: <span style="color:#5fb3ff">blue</span> → <span style="color:#ffd94a">yellow</span> → <span style="color:#ff5a3c">red</span> → white-hot.
     Slow wall hits crack your shell (3 cracks = shatter). Tap <kbd>Space</kbd> the instant you hit a wall to PARRY: double speed and repair a crack. Chain bounces for style ranks and bonus damage.
@@ -285,7 +303,7 @@ function pulsePanel() {
   return `${panelTabsHTML("pulse")}
     <h2>The Pulse</h2><div class="small muted">Living heatmap of each region's ecological balance. Every day each region drifts toward crimson. ${G.upgrades.mast || G.companion === "sylva" ? "▼ shows tomorrow's expected loss." : "Build a Signal-Mast (or travel with Sylva) to see the forecast."}</div>
     <canvas id="pulsec" width="960" height="620" style="width:100%;margin-top:8px;image-rendering:pixelated"></canvas>
-    <div class="row small" style="margin-top:6px"><span style="color:#6fcf6a">■ Balanced ≥60</span><span style="color:#e8cf4a">■ Depleted 30–59</span><span style="color:#e0473f">■ Enraged &lt;30 (Apex Warden)</span><span class="muted">· Press M, Q, I or Esc to navigate</span></div>`;
+    <div class="row small" style="margin-top:6px"><span style="color:#6fcf6a">■ Balanced ≥60</span><span style="color:#e8cf4a">■ Depleted 30–59</span><span style="color:#e0473f">■ Enraged &lt;30 (Apex Warden)</span><span style="color:#ff6b6b">🔒 Locked (Level requirement)</span><span class="muted">· Press M, Tab, or Esc to close</span></div>`;
 }
 function drawPulse() {
   const c = document.getElementById("pulsec"); if (!c) return;
@@ -295,12 +313,33 @@ function drawPulse() {
   const lbl = (s, px, py, col, font) => { x.font = font; x.textAlign = "center"; x.lineWidth = 4; x.strokeStyle = "#000"; x.strokeText(s, px, py); x.fillStyle = col; x.fillText(s, px, py); };
   for (const id in REGIONS) { const st = status(G.regions[id].bal), [px, py] = REGIONS[id].pos, col = STATUS_COLOR[st];
     const rg = x.createRadialGradient(px, py, 10, px, py, 125); rg.addColorStop(0, col + "66"); rg.addColorStop(1, col + "00"); x.fillStyle = rg; x.beginPath(); x.arc(px, py, 125, 0, 7); x.fill(); }
-  { const [px, py] = ROOTS.pos, open = G.echoes.length >= 3; t32(x, "door", px - 14, py - 52, 1, open ? 1 : 0.6); if (!open) icon32(x, ICON.lock, px + 8, py - 24, 24); lbl(ROOTS.name + (open ? "" : ` (${G.echoes.length}/3 echoes)`), px, py + 18, open ? "#d9c9f5" : "#bbb", "15px 'Pixelify Sans'"); }
-  for (const id in REGIONS) { const R = REGIONS[id], r = G.regions[id], st = status(r.bal), [px, py] = R.pos;
-    x.fillStyle = "#0b100dcc"; x.strokeStyle = STATUS_COLOR[st]; x.lineWidth = 3; x.beginPath(); x.arc(px, py, 30, 0, 7); x.fill(); x.stroke();
-    icon32(x, R.icon, px - 20, py - 20, 40); lbl(R.name, px, py + 50, "#f6f0dc", "16px 'Pixelify Sans'");
-    lbl(`${STATUS_LABEL[st]} · ${r.bal}${G.upgrades.mast || G.companion === "sylva" ? `  ▼${G.drift[id]}` : ""}`, px, py + 66, STATUS_COLOR[st], "13px 'Pixelify Sans'");
-    if (r.warden) icon32(x, ICON.warden, px + 22, py - 44, 28); if (r.echo) icon32(x, ICON.echo, px - 50, py - 44, 24); }
+  {
+    const [px, py] = ROOTS.pos;
+    const reqLvl = (typeof REGION_REQ_LVL !== "undefined" && REGION_REQ_LVL.roots) || 8;
+    const pLvl = (G && G.lvl) || 1;
+    const lvlLock = pLvl < reqLvl;
+    const echoLock = G.echoes.length < 3;
+    const open = !lvlLock && !echoLock;
+    t32(x, "door", px - 14, py - 52, 1, open ? 1 : 0.6);
+    if (!open) icon32(x, ICON.lock, px + 8, py - 24, 24);
+    lbl(ROOTS.name + (open ? "" : lvlLock ? ` [🔒 Lv ${reqLvl}]` : ` (${G.echoes.length}/3 echoes)`), px, py + 18, open ? "#d9c9f5" : "#ff7a7a", "15px 'Pixelify Sans'");
+  }
+  for (const id in REGIONS) {
+    const R = REGIONS[id], r = G.regions[id], st = status(r.bal), [px, py] = R.pos;
+    const reqLvl = (typeof REGION_REQ_LVL !== "undefined" && REGION_REQ_LVL[id]) || 1;
+    const pLvl = (G && G.lvl) || 1;
+    const isLocked = pLvl < reqLvl;
+    x.fillStyle = isLocked ? "#150a0acc" : "#0b100dcc";
+    x.strokeStyle = isLocked ? "#ff5555" : STATUS_COLOR[st];
+    x.lineWidth = 3;
+    x.beginPath(); x.arc(px, py, 30, 0, 7); x.fill(); x.stroke();
+    icon32(x, R.icon, px - 20, py - 20, 40);
+    if (isLocked) icon32(x, ICON.lock, px - 12, py - 46, 24);
+    lbl(R.name + (isLocked ? ` [🔒 Lv ${reqLvl}]` : ""), px, py + 50, isLocked ? "#ff9a9a" : "#f6f0dc", "16px 'Pixelify Sans'");
+    lbl(isLocked ? `LOCKED · Requires Lv ${reqLvl}` : `${STATUS_LABEL[st]} · ${r.bal}${G.upgrades.mast || G.companion === "sylva" ? `  ▼${G.drift[id]}` : ""}`, px, py + 66, isLocked ? "#ff6b6b" : STATUS_COLOR[st], "13px 'Pixelify Sans'");
+    if (r.warden) icon32(x, ICON.warden, px + 22, py - 44, 28);
+    if (r.echo) icon32(x, ICON.echo, px - 50, py - 44, 24);
+  }
   const here = AREA(G.loc).pos, im = img(charPath(CHAR.player));
   if (ok(im)) x.drawImage(im, 16, 0, 16, 20, here[0] + 34, here[1] - 40, 32, 40);
   lbl("YOU", here[0] + 50, here[1] - 44, "#ffe46a", "12px 'Pixelify Sans'");
@@ -339,13 +378,76 @@ function settingsPanel() {
     <!-- DISPLAY / FULLSCREEN -->
     <div class="card" style="margin-bottom:14px">
       <div style="font-size:15px;font-weight:600;color:var(--amber);margin-bottom:6px">Screen &amp; Display</div>
-      <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
         <div>
           <b>Fullscreen Mode</b>
-          <div class="small muted">Scale the game to fill your entire display. Shortcut: <kbd>${keyLabel((BINDINGS.fullscreen && BINDINGS.fullscreen[0]) || "f")}</kbd></div>
+          <div class="small muted">Scale the game to fill your entire display. Shortcut: <kbd>${keyLabel((BINDINGS.fullscreen && BINDINGS.fullscreen[0]) || "f11")}</kbd></div>
         </div>
         <button id="fs-btn" class="pri" style="font-size:14px;padding:6px 14px" onclick="toggleFullscreen();setTimeout(refreshPanel,60)">
           ${fs ? "✕ Exit Fullscreen" : "⛶ Enter Fullscreen"}
+        </button>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <b>Clean Screen Mode (Hide All UI)</b>
+          <div class="small muted">Temporarily hide all HUD boxes, menus, and helpers for an uncluttered cinematic view. Shortcut: <kbd>${keyLabel((BINDINGS.toggleui && BINDINGS.toggleui[0]) || "u")}</kbd></div>
+        </div>
+        <button onclick="toggleAllUI();refreshPanel()">
+          ${uiGlobalHidden ? "👁 Restore All UI [U]" : "👁 Clean Screen [U]"}
+        </button>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <b>Top Menu Bar</b>
+          <div class="small muted">Quick navigation buttons at top center. Click [▲ Hide] or [☰ Menu ▾] on screen anytime.</div>
+        </div>
+        <button onclick="toggleTopBar(${G && G.hideTopBar ? 'true' : 'false'});refreshPanel()">
+          ${G && G.hideTopBar ? "☰ Expand Top Bar" : "▲ Collapse Top Bar"}
+        </button>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <b>Player Status Box (Top-Left)</b>
+          <div class="small muted">Health, stamina, level, and ecosystem meters. Click [—] / [＋] directly on HUD to collapse/expand.</div>
+        </div>
+        <button onclick="toggleHudL(${G && G.hudLCollapsed ? 'false' : 'true'});refreshPanel()">
+          ${G && G.hudLCollapsed ? "＋ Expand Status" : "— Collapse Status"}
+        </button>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <b>Resources Bar (Top-Right)</b>
+          <div class="small muted">All 10 inventory resource counters. Click [—] / [＋] directly on HUD to collapse/expand.</div>
+        </div>
+        <button onclick="toggleHudR(${G && G.hudRCollapsed ? 'false' : 'true'});refreshPanel()">
+          ${G && G.hudRCollapsed ? "＋ Expand Resources" : "— Collapse Resources"}
+        </button>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <b>Quest Tracker (On Screen)</b>
+          <div class="small muted">Track active objectives and Root Echoes on screen while playing. Click [—] / [＋] to collapse/expand.</div>
+        </div>
+        <button onclick="toggleQuestTracker(${G && G.questTrackerCollapsed ? 'false' : 'true'});refreshPanel()">
+          ${G && G.questTrackerCollapsed ? "＋ Expand Quest Tracker" : "— Collapse Quest Tracker"}
+        </button>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <b>Controls Helper Bar (Bottom-Left)</b>
+          <div class="small muted">Key shortcuts helper in bottom-left. Click [✕] or [⌨ Controls ▴] to collapse/expand anytime.</div>
+        </div>
+        <button onclick="toggleKeysBar(${G && G.hideKeys ? 'true' : 'false'});refreshPanel()">
+          ${G && G.hideKeys ? "⌨ Expand Controls" : "✕ Collapse Controls"}
+        </button>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div>
+          <b>Silt Flashlight</b>
+          <div class="small muted">Toggle halogen beam to pierce darkness in the Silt-Floor, Iron Roots, and night. Shortcut: <kbd>${keyLabel((BINDINGS.flashlight && BINDINGS.flashlight[0]) || "g")}</kbd></div>
+        </div>
+        <button onclick="toggleFlashlight();refreshPanel()">
+          ${G && G.flashlight !== false ? "🔦 Flashlight: ON" : "Flashlight: OFF"}
         </button>
       </div>
     </div>

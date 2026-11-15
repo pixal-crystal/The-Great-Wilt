@@ -20,7 +20,7 @@ function startEncounter(types, opts = {}) {
   const region = G.loc;
   E = { region, t:0, rects:[], foes:[], bullets:[], fx:[], floats:[], clones:[], zones:[], sap:[], spikes:[], prisms:[], beams:[], src:opts.src || [], boss:!!opts.boss,
     p:{ x:BOX.x + 36, y:BOX.y + BOX.h / 2, vx:0, vy:0, r:6, dir:2, cracks:0, iframes:1.0, stun:0, brace:0, invis:0, dashCd:0, crackCd:0, t:0, trail:[] },
-    aim:null, combo:0, best:0, restT:0, parryBuf:0, wallWin:0, stamina:maxStamina(), kinetic:0, critHits:0, compT:2.5, flee:0, killed:[], calmed:0, blightK:0, beastK:0,
+    aim:null, combo:0, best:0, restT:0, parryBuf:0, wallWin:0, stamina:maxStamina(), dashSta:100, dashDelay:0, dashBarFade:0, dashExhausted:false, kinetic:0, critHits:0, compT:2.5, flee:0, killed:[], calmed:0, blightK:0, beastK:0,
     wind:{ state:"idle", t:4, dx:0, dy:0 }, miasmaT:0, sunT:0, mycelT:1, shake:0, prismCd:0, over:null, overT:0, intro:1.3, flash:0.6 };
   buildArena(region);
   swordEncInit(); if (E.fuelMsg) float(E.p.x, E.p.y - 20, E.fuelMsg, E.fueled ? "#ffb35a" : "#999");
@@ -30,9 +30,11 @@ function startEncounter(types, opts = {}) {
   mode = "encounter"; renderHud();
 }
 function buildArena(R) {
-  const b = BOX, add = (x, y, w, h, type) => E.rects.push({ x, y, w, h, type });
-  add(b.x - 10, b.y - 10, b.w + 20, 10, "stone"); add(b.x - 10, b.y + b.h, b.w + 20, 10, "stone");
-  add(b.x - 10, b.y, 10, b.h, "stone"); add(b.x + b.w, b.y, 10, b.h, "stone");
+  const b = BOX, add = (x, y, w, h, type, isBoundary = false, axis = null) => E.rects.push({ x, y, w, h, type, isBoundary, axis });
+  add(b.x - 10, b.y - 10, b.w + 20, 10, "stone", true, "top");
+  add(b.x - 10, b.y + b.h, b.w + 20, 10, "stone", true, "bottom");
+  add(b.x - 10, b.y, 10, b.h, "stone", true, "left");
+  add(b.x + b.w, b.y, 10, b.h, "stone", true, "right");
   const rx = () => b.x + 70 + Math.random() * (b.w - 130), ry = () => b.y + 18 + Math.random() * (b.h - 50);
   if (R === "sun") { add(b.x + 70, b.y, 46, 4, "bumper"); add(b.x + 150, b.y + b.h - 4, 46, 4, "bumper"); add(rx(), ry(), 14, 14, "stone"); }
   if (R === "trunk") { add(b.x, b.y + 30, 4, 44, "moss"); add(b.x + b.w - 4, b.y + 70, 4, 44, "moss"); add(rx(), ry(), 16, 12, "stone");
@@ -78,6 +80,7 @@ function encPointerUp() {
   const sp = launchSpeed(len);
   E.p.vx = dx / len * sp; E.p.vy = dy / len * sp;
   E.fx.push({ type:"ring", x:E.p.x, y:E.p.y, t:0, col:TIER_COL[tierOf(sp)] });
+  if (typeof tutOnLaunch === "function") tutOnLaunch();
 }
 function launchVec() {
   if (!E.aim) return null;
@@ -98,10 +101,26 @@ function parry() {
   swordOnParry();
 }
 function dash() {
-  const p = E.p; if (p.dashCd > 0 || E.stamina < 1 || p.stun > 0) return;
+  const p = E.p; if (p.dashCd > 0 || p.stun > 0) return;
+  const cost = 33;
+  if (E.dashSta < cost || E.dashExhausted) {
+    float(p.x, p.y - 16, "NO DASH STAMINA", "#e0473f");
+    E.dashBarFade = 2.2;
+    return;
+  }
   let dx = (keys["d"] ? 1 : 0) - (keys["a"] ? 1 : 0), dy = (keys["s"] ? 1 : 0) - (keys["w"] ? 1 : 0);
   if (!dx && !dy) { dx = mouse.x - p.x; dy = mouse.y - p.y; }
-  const l = Math.hypot(dx, dy) || 1; p.vx += dx / l * 240; p.vy += dy / l * 240; p.iframes = Math.max(p.iframes, 0.28 + 0.01 * maxStamina()); p.dashCd = 0.55; E.stamina -= 1;
+  const l = Math.hypot(dx, dy) || 1; p.vx += dx / l * 240; p.vy += dy / l * 240; p.iframes = Math.max(p.iframes, 0.28 + 0.01 * maxStamina()); p.dashCd = 0.35;
+  E.dashSta = Math.max(0, E.dashSta - cost);
+  E.dashDelay = 0.45;
+  E.dashBarFade = 2.2;
+  if (E.dashSta < cost) {
+    if (E.dashSta <= 1) {
+      E.dashExhausted = true;
+      float(p.x, p.y - 20, "EXHAUSTED!", "#ff5a5a");
+    }
+  }
+  if (typeof tutOnDash === "function") tutOnDash();
   E.fx.push({ type:"ring", x:p.x, y:p.y, t:0, col:"#9fe8f0" });
 }
 function hurtPlayer(d, o = {}) {
@@ -116,6 +135,7 @@ function hurtPlayer(d, o = {}) {
   G.hp = Math.max(0, G.hp - d); p.iframes = 0.8; E.combo = 0; E.shake = 0.2;
   float(p.x, p.y - 14, "-" + d, o.fire ? "#ffb35a" : "#ff6b6b");
   if (o.fire && !o.self) swordOnFire();
+  if (G.hp <= 0 && G.loc === "tutorial") { G.hp = 1; float(p.x, p.y - 24, "Kaelen hauls you up!", "#9fd3ff"); }
   if (G.hp <= 0) endEncounter("lose");
 }
 function damageFoe(f, d, o = {}) {
@@ -167,7 +187,28 @@ function useActive(a) {
 }
 function usePotion() { if (G.res.potions < 1 || G.hp >= maxHp()) return; G.res.potions--; G.hp = Math.min(maxHp(), G.hp + 4); float(E.p.x, E.p.y - 16, "+4", "#7dff7a"); }
 function throwBomb() { if (G.res.bombs < 1) return; G.res.bombs--; E.zones.push({ x:clamp(mouse.x, BOX.x, BOX.x + BOX.w), y:clamp(mouse.y, BOX.y, BOX.y + BOX.h), r:26, t:0.45, bomb:true }); }
+function keepInArena(o, r = 6) {
+  const minX = BOX.x + r, maxX = BOX.x + BOX.w - r;
+  const minY = BOX.y + r, maxY = BOX.y + BOX.h - r;
+  if (o.x < minX) o.x = minX;
+  else if (o.x > maxX) o.x = maxX;
+  if (o.y < minY) o.y = minY;
+  else if (o.y > maxY) o.y = maxY;
+}
 function collideRect(o, r, R) {
+  if (R.isBoundary) {
+    if (R.axis === "top" && o.y < BOX.y + r) { o.y = BOX.y + r; return [0, 1]; }
+    if (R.axis === "bottom" && o.y > BOX.y + BOX.h - r) { o.y = BOX.y + BOX.h - r; return [0, -1]; }
+    if (R.axis === "left" && o.x < BOX.x + r) { o.x = BOX.x + r; return [1, 0]; }
+    if (R.axis === "right" && o.x > BOX.x + BOX.w - r) { o.x = BOX.x + BOX.w - r; return [-1, 0]; }
+    const px = clamp(o.x, R.x, R.x + R.w), py = clamp(o.y, R.y, R.y + R.h);
+    const dx = o.x - px, dy = o.y - py;
+    if (dx * dx + dy * dy >= r * r) return null;
+    if (R.axis === "top") { o.y = BOX.y + r; return [0, 1]; }
+    if (R.axis === "bottom") { o.y = BOX.y + BOX.h - r; return [0, -1]; }
+    if (R.axis === "left") { o.x = BOX.x + r; return [1, 0]; }
+    if (R.axis === "right") { o.x = BOX.x + BOX.w - r; return [-1, 0]; }
+  }
   const px = clamp(o.x, R.x, R.x + R.w), py = clamp(o.y, R.y, R.y + R.h);
   const dx = o.x - px, dy = o.y - py, d2 = dx * dx + dy * dy;
   if (d2 >= r * r) return null;
@@ -188,12 +229,30 @@ function updateEncounter(rdt) {
   for (const k of ["iframes","stun","brace","invis","dashCd","crackCd"]) p[k] = Math.max(0, (p[k] || 0) - dt);
   E.prismCd = Math.max(0, E.prismCd - dt);
   E.stamina = Math.min(maxStamina(), E.stamina + dt * staminaRegen());
+  if (E.dashDelay > 0) {
+    E.dashDelay -= dt;
+  } else if (E.dashSta < 100) {
+    const regenSpd = 34 + (typeof staminaRegen === "function" ? staminaRegen() * 6 : 8);
+    E.dashSta = Math.min(100, E.dashSta + dt * regenSpd);
+    if (E.dashExhausted && E.dashSta >= 33) E.dashExhausted = false;
+  }
+  if (E.dashSta >= 100) {
+    E.dashBarFade = Math.max(0, E.dashBarFade - dt * 2.5);
+  } else {
+    E.dashBarFade = Math.max(E.dashBarFade, 1.2);
+  }
   swordTick(dt);
-  if (keys["escape"] && !E.boss) { E.flee += rdt; if (E.flee > 1) return endEncounter("flee"); } else E.flee = 0;
+  if (keys["escape"] && !E.boss && !E.noFlee) { E.flee += rdt; if (E.flee > 1) return endEncounter("flee"); } else E.flee = 0;
   let sp = pSpeed(), walking = false;
   if (sp < 60 && !E.aim && p.stun <= 0) {
     const ix = (isActionDown("right") || keys["d"] || keys["arrowright"] ? 1 : 0) - (isActionDown("left") || keys["a"] || keys["arrowleft"] ? 1 : 0), iy = (isActionDown("down") || keys["s"] || keys["arrowdown"] ? 1 : 0) - (isActionDown("up") || keys["w"] || keys["arrowup"] ? 1 : 0);
-    if (ix || iy) { const l = Math.hypot(ix, iy); p.vx = ix / l * 48; p.vy = iy / l * 48; walking = true; }
+    if (ix || iy) {
+      const l = Math.hypot(ix, iy);
+      const walkSpd = E.dashExhausted ? 26 : 48;
+      p.vx = ix / l * walkSpd;
+      p.vy = iy / l * walkSpd;
+      walking = true;
+    }
     else if (sp < 50) { p.vx *= Math.exp(-8 * dt); p.vy *= Math.exp(-8 * dt); }
   }
   p.walking = walking;
@@ -203,7 +262,7 @@ function updateEncounter(rdt) {
       else if (w.state === "warn") { w.state = "gust"; w.t = 1.6; } else { w.state = "idle"; w.t = 4 + Math.random() * 2; } }
     if (w.state === "gust") { if (!has("glider") && !has("storm")) { p.vx += w.dx * 240 * dt; p.vy += w.dy * 240 * dt; } for (const f of E.foes) if (!f.F.flying && !f.F.boss) { f.vx += w.dx * 120 * dt; f.vy += w.dy * 120 * dt; } }
   }
-  if ((R === "sun" || R === "glass") && has("photosynth")) { E.sunT += dt; if (E.sunT > 6) { E.sunT = 0; G.hp = Math.min(maxHp(), G.hp + 1); } }
+  if ((R === "sun" || R === "glass" || R === "tutorial") && (has("photosynth") || has("photoLeaf"))) { E.sunT += dt; if (E.sunT > 6) { E.sunT = 0; G.hp = Math.min(maxHp(), G.hp + 1); } }
   const inSap = E.sap.some(s => Math.hypot(p.x - s.x, p.y - s.y) < s.r);
   const k = inSap && !has("gillFronds") && !has("resinTitan") ? 4 : walking ? 0 : 0.55;
   p.vx *= Math.exp(-k * dt); p.vy *= Math.exp(-k * dt);
@@ -214,11 +273,34 @@ function updateEncounter(rdt) {
   for (let s = 0; s < steps; s++) {
     p.x += p.vx * dt / steps; p.y += p.vy * dt / steps;
     for (const Rc of E.rects) { if (Rc.dead) continue; const n = collideRect(p, p.r, Rc); if (n) wallHit(Rc, n[0], n[1]); }
+    keepInArena(p, p.r);
     for (const f of E.foes) {
       if (f.dead || f.dying || f.calm) continue;
-      const d = dist(p, f); if (d >= p.r + f.r + (pSpeed() >= ATTACK_SPEED && !walking ? swordReach(pSpeed()) : 0)) continue;
-      const nx = (p.x - f.x) / (d || 1), ny = (p.y - f.y) / (d || 1), spd = pSpeed();
-      const rr = Math.max(d, p.r + f.r + 0.5); p.x = f.x + nx * rr; p.y = f.y + ny * rr;
+      const d = dist(p, f);
+      const spd = pSpeed();
+      const reach = (spd >= ATTACK_SPEED && !walking ? swordReach(spd) : 0);
+      const minD = p.r + f.r + 0.5;
+      if (d >= minD + reach) continue;
+      const nx = d > 1e-4 ? (p.x - f.x) / d : 1, ny = d > 1e-4 ? (p.y - f.y) / d : 0;
+      
+      // Separate p and f safely: enemy CANNOT push player through arena walls
+      if (d < minD) {
+        const overlap = minD - d;
+        const targetPx = p.x + nx * overlap;
+        const targetPy = p.y + ny * overlap;
+        const clampedPx = clamp(targetPx, BOX.x + p.r, BOX.x + BOX.w - p.r);
+        const clampedPy = clamp(targetPy, BOX.y + p.r, BOX.y + BOX.h - p.r);
+        const movedX = clampedPx - p.x;
+        const movedY = clampedPy - p.y;
+        p.x = clampedPx;
+        p.y = clampedPy;
+        const leftoverX = (nx * overlap) - movedX;
+        const leftoverY = (ny * overlap) - movedY;
+        f.x -= leftoverX;
+        f.y -= leftoverY;
+        keepInArena(f, f.r);
+      }
+
       if (f.phantom) { damageFoe(f, 1); continue; }
       if (spd >= ATTACK_SPEED && !walking) {
         if (f.hitCd <= 0) {
@@ -227,15 +309,17 @@ function updateEncounter(rdt) {
           E.fx.push({ type:"spark", x:(p.x + f.x) / 2, y:(p.y + f.y) / 2, t:0, col:TIER_COL[tierOf(spd)] });
         }
         const vn = p.vx * nx + p.vy * ny; if (vn < 0) { p.vx -= 2 * vn * nx; p.vy -= 2 * vn * ny; } p.vx *= 0.92; p.vy *= 0.92;
-      } else if (f.contactCd <= 0 && f.stun <= 0) { hurtPlayer(f.dmg, { fire:f.F.fire }); f.contactCd = 1.0; f.atk = 0.3; }
+      } else if (f.contactCd <= 0 && f.stun <= 0 && !f.F.harmless) { hurtPlayer(f.dmg, { fire:f.F.fire }); f.contactCd = 1.0; f.atk = 0.3; }
       if (E.over) return;
     }
+    keepInArena(p, p.r);
     if (pSpeed() >= ATTACK_SPEED && !walking) for (const f of E.foes) if (f.part && !f.dead && !f.dying) hitBossPart(f, pSpeed());
     for (const pr of E.prisms) if (E.prismCd <= 0 && pSpeed() >= 170 && Math.hypot(p.x - pr.x, p.y - pr.y) < p.r + pr.r) {
       E.prismCd = 1.2; const a = Math.atan2(p.vy, p.vx), s2 = pSpeed() * 1.1;
       E.clones.push({ x:p.x, y:p.y, vx:Math.cos(a + 0.55) * s2, vy:Math.sin(a + 0.55) * s2, life:3, hit:new Map() });
       p.vx = Math.cos(a - 0.3) * s2; p.vy = Math.sin(a - 0.3) * s2; float(pr.x, pr.y - 10, "SPLIT!", "#9fe8f0"); triggerPrism("PRISM");
     }
+    keepInArena(p, p.r);
   }
   if (sp > 20) p.dir = Math.abs(p.vx) > Math.abs(p.vy) ? (p.vx < 0 ? 1 : 2) : (p.vy < 0 ? 3 : 0);
   p.trail.push({ x:p.x, y:p.y, c:TIER_COL[tierOf(sp)] }); if (p.trail.length > 18) p.trail.shift();
@@ -271,7 +355,16 @@ function updateEncounter(rdt) {
   for (const f of E.foes) updateFoe(f, dt);
   if (E.over) return;
   const live = E.foes.filter(f => !f.dead);
-  for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) { const a = live[i], b = live[j], d = dist(a, b), m = a.r + b.r; if (d < m && d > 0) { const push = (m - d) / 2, nx = (a.x - b.x) / d, ny = (a.y - b.y) / d; a.x += nx * push; a.y += ny * push; b.x -= nx * push; b.y -= ny * push; } }
+  for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+    const a = live[i], b = live[j], d = dist(a, b), m = a.r + b.r;
+    if (d < m && d > 0) {
+      const push = (m - d) / 2, nx = (a.x - b.x) / d, ny = (a.y - b.y) / d;
+      a.x += nx * push; a.y += ny * push;
+      b.x -= nx * push; b.y -= ny * push;
+      keepInArena(a, a.r);
+      keepInArena(b, b.r);
+    }
+  }
   for (const b of E.bullets) {
     b.life -= dt; b.x += b.vx * dt; b.y += b.vy * dt; b.t = (b.t || 0) + dt;
     if (!b.pierceBox && (b.x < BOX.x || b.x > BOX.x + BOX.w || b.y < BOX.y || b.y > BOX.y + BOX.h)) b.life = 0;
@@ -304,20 +397,38 @@ function updateEncounter(rdt) {
   }
   for (const x of E.fx) x.t += rdt; E.fx = E.fx.filter(x => x.t < 0.6);
   for (const fl of E.floats) fl.t += rdt; E.floats = E.floats.filter(fl => fl.t < 1);
+  keepInArena(p, p.r);
+  for (const f of E.foes) if (!f.dead && !f.dying) keepInArena(f, f.r);
   if (!hostiles().length && !E.foes.some(f => f.dying > 0 && !f.dead)) endEncounter("win");
 }
 function wallHit(Rc, nx, ny) {
   const p = E.p, spd = pSpeed(), vn = p.vx * nx + p.vy * ny;
   if (vn >= 0) return;
-  if (Rc.type === "moss") { p.vx = p.vy = 0; if (spd > 60) { float(p.x, p.y - 14, "ABSORBED", "#7fd26a"); E.best = Math.max(E.best, E.combo); E.combo = 0; } return; }
-  if (Rc.type === "cracked" && spd >= 320) { Rc.dead = true; p.vx *= 0.85; p.vy *= 0.85; float(Rc.x + Rc.w / 2, Rc.y, "SMASH!", "#ffe46a"); E.fx.push({ type:"shards", x:Rc.x + Rc.w / 2, y:Rc.y + Rc.h / 2, t:0 }); E.combo++; if (Math.random() < 0.5) { gain({ scrap:1 }); float(Rc.x, Rc.y + 10, "+scrap", "#ccc"); } return; }
+  if (p.walking) {
+    p.vx -= vn * nx;
+    p.vy -= vn * ny;
+    return;
+  }
+  if (Rc.type === "cracked" && spd >= 320) {
+    Rc.dead = true; p.vx *= 0.85; p.vy *= 0.85; float(Rc.x + Rc.w / 2, Rc.y, "SMASH!", "#ffe46a");
+    E.fx.push({ type:"shards", x:Rc.x + Rc.w / 2, y:Rc.y + Rc.h / 2, t:0 });
+    E.combo++;
+    if (Math.random() < 0.5) { gain({ scrap:1 }); float(Rc.x, Rc.y + 10, "+scrap", "#ccc"); }
+    return;
+  }
   p.vx -= 2 * vn * nx; p.vy -= 2 * vn * ny;
-  if (Rc.type === "bumper") { const s = pSpeed() || 1, ns = Math.max(260, s * 1.6); p.vx *= ns / s; p.vy *= ns / s; float(p.x, p.y - 12, "BUMPER", "#ff6bff"); }
-  else { p.vx *= 0.9; p.vy *= 0.9; }
+  if (Rc.type === "bumper") {
+    const s = pSpeed() || 1, ns = Math.max(260, s * 1.6);
+    p.vx *= ns / s; p.vy *= ns / s; float(p.x, p.y - 12, "BUMPER", "#ff6bff");
+  } else if (Rc.type === "moss") {
+    p.vx *= 0.8; p.vy *= 0.8;
+  } else {
+    p.vx *= 0.9; p.vy *= 0.9;
+  }
   if (spd < 30) return;
-  E.fx.push({ type:"spark", x:p.x - nx * p.r, y:p.y - ny * p.r, t:0, col:TIER_COL[tierOf(spd)] });
+  E.fx.push({ type:"spark", x:p.x - nx * p.r, y:p.y - ny * p.r, t:0, col:Rc.type === "moss" ? "#7fd26a" : TIER_COL[tierOf(spd)] });
   if (spd >= ATTACK_SPEED) E.combo++;
-  if (!p.walking && spd >= 60 && spd < 170 && Rc.type !== "bumper" && p.brace <= 0 && !has("resinTitan") && (!p.crackCd || p.crackCd <= 0)) {
+  if (!p.walking && spd >= 60 && spd < 170 && Rc.type !== "bumper" && Rc.type !== "moss" && p.brace <= 0 && !has("resinTitan") && (!p.crackCd || p.crackCd <= 0)) {
     crack();
     p.crackCd = 0.35;
   }
@@ -344,9 +455,11 @@ function updateFoe(f, dt) {
   swordTickFoe(f, dt); if (f.dead || f.dying) return;
   const p = E.p, F = f.F, dx = p.x - f.x, dy = p.y - f.y, d = Math.hypot(dx, dy) || 1;
   const seen = p.invis <= 0;
-  let spd = F.speed * (f.slow > 0 ? 0.5 : 1); if (f.stun > 0) spd = 0;
-  let mx = 0, my = 0;
   const ai = f.phantom ? "chase" : F.ai;
+  // Walking speed of player in encounter is 48 px/s. Enemies move faster than walking speed (52-58 px/s) unless slowed/stunned.
+  const baseSpd = ai === "chase" ? Math.max(54, (F.speed || 30) * 1.25) : Math.max(50, (F.speed || 30) * 1.15);
+  let spd = baseSpd * (f.slow > 0 ? 0.5 : 1); if (f.stun > 0) spd = 0;
+  let mx = 0, my = 0;
   if (ai === "chase") { if (seen) { mx = dx / d; my = dy / d; } }
   else if (ai === "hopper") { f.hopCd -= dt; if (f.hopCd <= 0 && seen && f.stun <= 0) { f.vx += dx / d * 140; f.vy += dy / d * 140; f.hopCd = 1.5 + Math.random() * 0.5; } spd = 0; }
   else if (ai === "shooter") {
@@ -363,6 +476,7 @@ function updateFoe(f, dt) {
   const sm = inSap ? 0.4 : 1;
   f.x += (mx * spd * sm + f.vx) * dt; f.y += (my * spd * sm + f.vy) * dt;
   for (const Rc of E.rects) if (!Rc.dead) { const n = collideRect(f, f.r, Rc); if (n && f.state === "charge") { const vn = f.vx * n[0] + f.vy * n[1]; if (vn < 0) { f.vx -= 2 * vn * n[0]; f.vy -= 2 * vn * n[1]; } } }
+  keepInArena(f, f.r);
   const mvx = mx * spd + f.vx, mvy = my * spd + f.vy;
   if (Math.abs(mvx) + Math.abs(mvy) > 3) f.dir = Math.abs(mvx) > Math.abs(mvy) ? (mvx < 0 ? 1 : 2) : (mvy < 0 ? 3 : 0);
   f.moving = Math.abs(mvx) + Math.abs(mvy) > 3;
@@ -440,8 +554,8 @@ function finishEncounter() {
     lines.push("You shatter...", `${COMPANIONS[G.companion].name} drags you back to the caravan. Lost ${ls} sap and ${lc} barter bits.`);
     after = () => doFade(() => { G.phase = 0; advanceDay(); if (G.over) return showCollapse(); enterRegion(G.loc === "roots" ? "silt" : G.loc); });
   }
-  E = null; mode = "world"; save(); renderHud();
-  say(lines, { char:CHAR.player, name:res === "win" ? "Victory" : res === "flee" ? "Escaped" : "Defeat", onClose:after });
+  E = null; mode = "world"; worldStamina = maxWorldStamina(); worldStaExhausted = false; save(); renderHud();
+  say(lines, { char:CHAR.player, name:res === "win" ? "Victory" : res === "flee" ? "Escaped" : "Defeat", onClose:after || (G.loc === "tutorial" && typeof tutAfterFight === "function" ? () => tutAfterFight(res) : null) });
 }
 
 /* ---------- encounter drawing ---------- */
@@ -453,7 +567,7 @@ function drawEncounter() {
     ctx.translate((Math.random() - 0.5) * mag, (Math.random() - 0.5) * mag);
   }
   ctx.fillStyle = "#000"; ctx.fillRect(-4, -4, VW + 8, VH + 8);
-  const bgc = { sun:"rgba(255,200,80,", trunk:"rgba(230,140,40,", silt:"rgba(160,110,255,", glass:"rgba(90,220,255,", roots:"rgba(255,60,60," }[R];
+  const bgc = { sun:"rgba(255,200,80,", trunk:"rgba(230,140,40,", silt:"rgba(160,110,255,", glass:"rgba(90,220,255,", roots:"rgba(255,60,60," }[R] || "rgba(255,200,80,";
   ctx.strokeStyle = bgc + "0.12)"; ctx.lineWidth = 1;
   for (let i = -2; i < 16; i++) { const o = (performance.now() / 120) % 32; ctx.beginPath(); ctx.moveTo(i * 32 + o, 0); ctx.lineTo(i * 32 + o - 60, VH); ctx.stroke(); }
   ctx.fillStyle = "#06090a"; ctx.fillRect(BOX.x, BOX.y, BOX.w, BOX.h);
@@ -505,6 +619,23 @@ function drawEncounter() {
   if (p.cracks) { ctx.strokeStyle = "rgba(220,240,255,0.95)"; ctx.lineWidth = 0.8; for (let i = 0; i < p.cracks * 3; i++) { const a = i * 2.4 + 0.5; ctx.beginPath(); ctx.moveTo(p.x, p.y - 2); ctx.lineTo(p.x + Math.cos(a) * 7, p.y - 2 + Math.sin(a) * 8); ctx.lineTo(p.x + Math.cos(a + 0.4) * 10, p.y - 2 + Math.sin(a + 0.4) * 10); ctx.stroke(); } }
   if (p.brace > 0) { ctx.strokeStyle = "#9fe8f0"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y - 1, 10, 0, 7); ctx.stroke(); }
   if (overgrown()) { ctx.strokeStyle = "#58b84f"; ctx.lineWidth = 1; for (let i = 0; i < 3; i++) { const a = t * 2 + i * 2.1; ctx.beginPath(); ctx.arc(p.x, p.y - 1, 11, a, a + 0.8); ctx.stroke(); } }
+  if (E.dashBarFade > 0) {
+    const alpha = Math.min(1, E.dashBarFade);
+    const pct = Math.max(0, Math.min(1, E.dashSta / 100));
+    const bw = 22, bh = 3, bx = Math.round(p.x - bw / 2), by = Math.round(p.y - 18);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "rgba(10, 14, 18, 0.85)";
+    ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    ctx.fillStyle = "#222a30";
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = E.dashExhausted ? "#e0473f" : (pct < 0.35 ? "#f1a340" : "#5fb3ff");
+    ctx.fillRect(bx, by, Math.round(bw * pct), bh);
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(bx + Math.round(bw * 0.33), by, 1, bh);
+    ctx.fillRect(bx + Math.round(bw * 0.66), by, 1, bh);
+    ctx.restore();
+  }
   for (const b of E.bullets) {
     if (b.moth) { icon16(ctx, IC(59, 13), b.x - 5, b.y - 5, 10); continue; }
     if (b.spr && drawProj(ctx, b.spr, b.x, b.y, Math.atan2(b.vy, b.vx), b.t || 0)) continue;
@@ -521,7 +652,18 @@ function drawEncounter() {
     ctx.globalAlpha = 1;
   }
   const dark = (R === "silt" || R === "roots") && !has("echoBulb") && !has("mycelCrown");
-  if (dark) { ctx.save(); ctx.beginPath(); ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h); ctx.clip(); drawLight(p.x, p.y, 62, 0.92); ctx.restore(); }
+  if (dark) {
+    const flashOn = G && G.flashlight !== false;
+    let cone = null;
+    if (flashOn) {
+      let fa = Math.atan2(p.vy, p.vx);
+      if (Math.hypot(p.vx, p.vy) < 15) fa = E.aim ? Math.atan2(mouse.y - p.y, mouse.x - p.x) : Math.PI / 2;
+      cone = { angle: fa, spread: 0.58, range: 180 };
+    }
+    ctx.save(); ctx.beginPath(); ctx.rect(BOX.x, BOX.y, BOX.w, BOX.h); ctx.clip();
+    drawLight(p.x, p.y, flashOn ? 40 : 62, 0.92, cone);
+    ctx.restore();
+  }
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.strokeRect(BOX.x - 1, BOX.y - 1, BOX.w + 2, BOX.h + 2);
   if (R === "sun" && E.wind.state !== "idle") { const w = E.wind, col = w.state === "warn" ? `rgba(255,255,255,${0.4 + Math.sin(performance.now() / 50) * 0.4})` : "#e9f6ff";
     for (let i = 0; i < 6; i++) { const ox = BOX.x + 20 + ((i * 47 + (w.state === "gust" ? t * 160 : 0)) % (BOX.w - 40)), oy = BOX.y + 20 + (i * 31) % (BOX.h - 40);
@@ -532,6 +674,7 @@ function drawEncounter() {
   outlineText(ctx, C.name, BOX.x - 26, BOX.y + BOX.h + 8, "#9fd3ff", "6px 'Pixelify Sans'");
   ctx.restore();
   drawEncHud(); drawSwordHud();
+  if (typeof tutDrawEnc === "function") tutDrawEnc();
   if (E.intro > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.max(0, E.flash)})`; ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(0, VH / 2 - 22, VW, 44);
     outlineText(ctx, E.boss ? `${E.foes[0].F.name} attacks!` : `${E.foes.map(f => f.F.name).join(", ")} ${E.foes.length > 1 ? "draw" : "draws"} near!`, VW / 2, VH / 2 - 4, "#ffe46a", "11px 'Pixelify Sans'");
@@ -548,7 +691,7 @@ function drawTrajectory(vx, vy) {
     o.vx *= Math.exp(-0.55 * dt); o.vy *= Math.exp(-0.55 * dt);
     let stop = false;
     for (let s = 0; s < 3 && !stop; s++) { o.x += o.vx * dt / 3; o.y += o.vy * dt / 3;
-      for (const Rc of E.rects) { if (Rc.dead) continue; const n = collideRect(o, p.r, Rc); if (n) { const vn = o.vx * n[0] + o.vy * n[1]; if (vn < 0) { if (Rc.type === "moss") { stop = true; break; } o.vx -= 2 * vn * n[0]; o.vy -= 2 * vn * n[1]; if (Rc.type === "bumper") { o.vx *= 1.6; o.vy *= 1.6; } } } } }
+      for (const Rc of E.rects) { if (Rc.dead) continue; const n = collideRect(o, p.r, Rc); if (n) { const vn = o.vx * n[0] + o.vy * n[1]; if (vn < 0) { o.vx -= 2 * vn * n[0]; o.vy -= 2 * vn * n[1]; if (Rc.type === "moss") { o.vx *= 0.8; o.vy *= 0.8; } if (Rc.type === "bumper") { o.vx *= 1.6; o.vy *= 1.6; } } } } }
     if (i % 3 === 0) { ctx.globalAlpha = 1 - i / steps; ctx.fillStyle = TIER_COL[tierOf(Math.hypot(o.vx, o.vy))]; ctx.fillRect(o.x - 1, o.y - 1, 2, 2); }
     if (stop || Math.hypot(o.vx, o.vy) < 20) break;
   }
@@ -569,6 +712,13 @@ function drawEncHud() {
   outlineText(ctx, "HP", BOX.x, by + 7, "#fff", "7px 'Pixelify Sans'", "left");
   ctx.fillStyle = "#300"; ctx.fillRect(BOX.x + 14, by + 1, 70, 7); ctx.fillStyle = "#ffdf3a"; ctx.fillRect(BOX.x + 14, by + 1, 70 * G.hp / maxHp(), 7);
   outlineText(ctx, `${Math.ceil(G.hp)}/${maxHp()}`, BOX.x + 88, by + 7, "#fff", "7px 'Pixelify Sans'", "left");
+  const dashPct = Math.max(0, Math.min(1, E.dashSta / 100));
+  outlineText(ctx, "DASH", BOX.x + 138, by + 7, "#fff", "7px 'Pixelify Sans'", "left");
+  ctx.fillStyle = "#122"; ctx.fillRect(BOX.x + 164, by + 1, 48, 7);
+  ctx.fillStyle = E.dashExhausted ? "#e0473f" : (dashPct < 0.35 ? "#f1a340" : "#5fb3ff");
+  ctx.fillRect(BOX.x + 164, by + 1, Math.round(48 * dashPct), 7);
+  ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fillRect(BOX.x + 164 + 16, by + 1, 1, 7); ctx.fillRect(BOX.x + 164 + 32, by + 1, 1, 7);
+  outlineText(ctx, E.dashExhausted ? "EXHAUSTED" : `${Math.min(3, Math.floor(E.dashSta / 33))}/3`, BOX.x + 216, by + 7, E.dashExhausted ? "#ff6b6b" : "#9fe8f0", "6px 'Pixelify Sans'", "left");
   outlineText(ctx, "ST", BOX.x, by + 18, "#fff", "7px 'Pixelify Sans'", "left");
   for (let i = 0; i < maxStamina(); i++) { ctx.fillStyle = i < Math.floor(E.stamina) ? "#5fb3ff" : "#123"; ctx.fillRect(BOX.x + 14 + i * Math.min(7, 70 / maxStamina()), by + 12, Math.min(6, 70 / maxStamina() - 1), 6); }
   outlineText(ctx, "SHELL", BOX.x + 90, by + 18, "#fff", "7px 'Pixelify Sans'", "left");
@@ -578,9 +728,10 @@ function drawEncHud() {
   outlineText(ctx, `${TIER_NAME[tier]} ${Math.round(sp)}`, BOX.x + BOX.w, by + 7, TIER_COL[tier], "7px 'Pixelify Sans'", "right");
   if (E.combo >= 2) { const st = STYLE.find(s => E.combo >= s[0]); outlineText(ctx, `x${E.combo} ${st ? st[1] : ""}`, BOX.x + BOX.w, by + 18, "#ffe46a", "8px 'Pixelify Sans'", "right"); }
   const L = activeList(); let hx = BOX.x; const hy = VH - 24;
+  const dashCharges = Math.min(3, Math.floor(E.dashSta / 33));
   [...L.map((a, i) => ({ key:String(i + 1), icon:a.icon, name:a.name, ok:E.stamina >= a.cost && (!a.need || a.need()) })),
    { key:"H", icon:ICON.potions, name:`Tonic ${G.res.potions}`, ok:G.res.potions > 0 }, { key:"B", icon:ICON.bombs, name:`Bomb ${G.res.bombs}`, ok:G.res.bombs > 0 },
-   { key:"⇧", icon:IC(121, 0), name:"Dash", ok:E.stamina >= 2 }].forEach(s => {
+   { key:"⇧", icon:IC(121, 0), name:`Dash ${dashCharges}/3`, ok:E.dashSta >= 33 && !E.dashExhausted }].forEach(s => {
     ctx.globalAlpha = s.ok ? 1 : 0.35; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(hx + 0.5, hy + 0.5, 15, 15); icon16(ctx, s.icon, hx + 2, hy + 2, 12);
     outlineText(ctx, s.key, hx + 2, hy + 6, "#ffe46a", "6px 'Pixelify Sans'", "left");
     outlineText(ctx, s.name, hx + 8, hy + 22, "#ddd", "5px 'Pixelify Sans'"); ctx.globalAlpha = 1; hx += 30; });

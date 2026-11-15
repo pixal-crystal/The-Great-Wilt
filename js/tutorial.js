@@ -260,7 +260,7 @@ function tutorialWeaponsHTML() {
     <div class="guide-grid">
       <div class="card" style="border-left:4px solid #ff6a3c">
         <b style="color:#ff6a3c">The First Pruner</b> <span class="tag">Chainsaw Greatsword</span>
-        <div class="small" style="margin-top:4px">Massive industrial terraforming chainsaw (1.6× damage). Breaks armor and stone walls. <b>In the overworld, press <kbd>F</kbd> near trees, logs, and stumps to rev through them and open secret shortcuts!</b></div>
+        <div class="small" style="margin-top:4px">Massive industrial terraforming chainsaw (1.6× damage). Breaks armor and stone walls. <b>In the overworld, press <kbd>E</kbd> near trees, logs, and stumps to rev through them and open secret shortcuts!</b></div>
       </div>
       <div class="card" style="border-left:4px solid #a8f58a">
         <b style="color:#a8f58a">Heartwood's Fang</b> <span class="tag">Living Katana</span>
@@ -351,9 +351,10 @@ function tutorialGraftsHTML() {
     <h3>Leveling Up &amp; Growth Points (GP)</h3>
     <div class="card" style="line-height:1.45">
       Defeating mutated beasts and blighted horrors in combat awards <b>XP</b>.
-      Whenever you level up, you gain <b>Growth Points (GP)</b> to spend directly in your <b>Inventory (<kbd>E</kbd>)</b>:
+      Whenever you level up, you gain <b>Growth Points (GP)</b> to spend directly in your <b>Inventory (<kbd>Tab</kbd>)</b>:
       <ul style="margin:6px 0;padding-left:18px">
         <li><b>Vital Root (+4 Max HP):</b> Expands your total health pool to survive harder boss strikes.</li>
+        <li><b>Agility &amp; Stamina (+20 Sprint Stamina):</b> Expands your overworld sprint stamina bar and boosts combat stamina recovery.</li>
         <li><b>Kinetic Piston (+5% Launch Power):</b> Increases your base slingshot launch velocity, helping you hit Red and White-Hot tiers easily.</li>
         <li><b>Chitin Plating (Shell Resilience):</b> Reduces internal damage suffered when taking shell cracks or shattering.</li>
       </ul>
@@ -403,7 +404,7 @@ function tutorialPulseHTML() {
     <h3>How to Restore &amp; Protect the Canopy</h3>
     <div class="guide-grid">
       <div class="card">
-        <b>1. Clear Industrial Waste (<kbd>F</kbd>)</b>
+        <b>1. Clear Industrial Waste (<kbd>E</kbd>)</b>
         <div class="small muted" style="margin-top:4px">Locate pre-collapse rusted machinery leaking toxic residue. Clearing it grants +6 balance (+9 with Sylva) and yields valuable scrap.</div>
       </div>
       <div class="card">
@@ -424,8 +425,8 @@ function tutorialPulseHTML() {
 
 /* ---------- 6. CONTROLS QUICK-SHEET ---------- */
 function tutorialControlsHTML() {
-  const pK = keyLabel((BINDINGS.pack && BINDINGS.pack[0]) || "e");
-  const iK = keyLabel((BINDINGS.interact && BINDINGS.interact[0]) || "f");
+  const pK = keyLabel((BINDINGS.pack && BINDINGS.pack[0]) || "tab");
+  const iK = keyLabel((BINDINGS.interact && BINDINGS.interact[0]) || "e");
   const qK = keyLabel((BINDINGS.quests && BINDINGS.quests[0]) || "q");
   const mK = keyLabel((BINDINGS.pulse && BINDINGS.pulse[0]) || "m");
   const oK = keyLabel((BINDINGS.settings && BINDINGS.settings[0]) || "o");
@@ -452,7 +453,10 @@ function tutorialControlsHTML() {
         <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>Arrows</kbd></span>
       </div>
       <div class="card row" style="justify-content:space-between">
-        <b>Run / Sprint</b>
+        <div>
+          <b>Run / Sprint</b>
+          <div class="small muted">Drains Sprint Stamina. If depleted, catch your breath to recover.</div>
+        </div>
         <span><kbd>${rK}</kbd></span>
       </div>
       <div class="card row" style="justify-content:space-between">
@@ -464,8 +468,11 @@ function tutorialControlsHTML() {
         <span><kbd>${pK}</kbd></span>
       </div>
       <div class="card row" style="justify-content:space-between">
-        <b>Quests &amp; Objectives</b>
-        <span><kbd>${qK}</kbd></span>
+        <div>
+          <b>Chronicle &amp; Quests</b>
+          <div class="small muted">Speak with Chronicle-Keeper Vael in Caravan camp</div>
+        </div>
+        <span><kbd>E</kbd> in Camp</span>
       </div>
       <div class="card row" style="justify-content:space-between">
         <b>The Pulse (Biome Map)</b>
@@ -474,6 +481,18 @@ function tutorialControlsHTML() {
       <div class="card row" style="justify-content:space-between">
         <b>Settings &amp; Rebinds</b>
         <span><kbd>${oK}</kbd></span>
+      </div>
+      <div class="card row" style="justify-content:space-between">
+        <b>Silt Flashlight (Toggle)</b>
+        <span><kbd>${keyLabel((BINDINGS.flashlight && BINDINGS.flashlight[0]) || "g")}</kbd> (pierces Silt-Floor darkness)</span>
+      </div>
+      <div class="card row" style="justify-content:space-between">
+        <b>Toggle All On-Screen UI</b>
+        <span><kbd>${keyLabel((BINDINGS.toggleui && BINDINGS.toggleui[0]) || "u")}</kbd></span>
+      </div>
+      <div class="card row" style="justify-content:space-between">
+        <b>Close Any Panel / Dialog</b>
+        <span><kbd>Esc</kbd> or click outside</span>
       </div>
       <div class="card row" style="justify-content:space-between">
         <b>Toggle Fullscreen</b>
@@ -493,7 +512,7 @@ function tutorialControlsHTML() {
       </div>
       <div class="card row" style="justify-content:space-between">
         <b>Combat Dash (i-frames)</b>
-        <span><kbd>${rK}</kbd> (uses 2 ST)</span>
+        <span><kbd>${rK}</kbd> (uses Dash Stamina bar)</span>
       </div>
       <div class="card row" style="justify-content:space-between">
         <b>Drink Sap Tonic (+12 HP)</b>

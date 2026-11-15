@@ -37,9 +37,9 @@ const DEFAULT_BINDINGS = {
   left: ["a", "arrowleft"],
   right: ["d", "arrowright"],
   run: ["shift"],
-  interact: ["f", "enter"],
+  interact: ["e", "enter"],
   quests: ["q"],
-  pack: ["e", "i", "tab"],
+  pack: ["tab", "i"],
   pulse: ["m"],
   settings: ["o"],
   parry: [" "],
@@ -49,6 +49,8 @@ const DEFAULT_BINDINGS = {
   act2: ["2"],
   act3: ["3"],
   fullscreen: ["f11"],
+  toggleui: ["u"],
+  flashlight: ["g", "l"],
 };
 
 const BINDING_ACTIONS = [
@@ -58,6 +60,7 @@ const BINDING_ACTIONS = [
   { id: "right", label: "Move Right", category: "Movement" },
   { id: "run", label: "Run / Dash", category: "Movement" },
   { id: "interact", label: "Interact / Confirm", category: "Interactions" },
+  { id: "flashlight", label: "Toggle Silt Flashlight", category: "Interactions" },
   { id: "quests", label: "Quests Menu", category: "Menus" },
   { id: "pack", label: "Inventory (Pack & Grafts)", category: "Menus" },
   { id: "pulse", label: "The Pulse Map", category: "Menus" },
@@ -69,6 +72,7 @@ const BINDING_ACTIONS = [
   { id: "act2", label: "Graft Ability 2", category: "Combat" },
   { id: "act3", label: "Graft Ability 3", category: "Combat" },
   { id: "fullscreen", label: "Toggle Fullscreen", category: "Display" },
+  { id: "toggleui", label: "Toggle All On-Screen UI", category: "Display" },
 ];
 
 let BINDINGS = loadBindings();
@@ -77,14 +81,18 @@ function loadBindings() {
     const s = localStorage.getItem("greatWilt_bindings");
     if (s) {
       const parsed = JSON.parse(s);
-      if (parsed.pack && !parsed.pack.includes("e") && parsed.interact && parsed.interact.includes("e")) {
-        parsed.pack = ["e", ...parsed.pack];
-        parsed.interact = parsed.interact.filter(k => k !== "e");
-        if (!parsed.interact.includes("f")) parsed.interact.unshift("f");
+      if (parsed.pack && parsed.pack.includes("e") && parsed.interact && parsed.interact.includes("f")) {
+        parsed.pack = ["tab", "i"];
+        parsed.interact = ["e", "enter"];
+        saveBindings();
       }
       if (parsed.fullscreen && parsed.fullscreen.includes("f") && (!parsed.interact || parsed.interact.includes("f"))) {
         parsed.fullscreen = parsed.fullscreen.filter(k => k !== "f");
         if (!parsed.fullscreen.length) parsed.fullscreen.push("f11");
+      }
+      if (parsed.flashlight && parsed.flashlight.includes("f")) {
+        parsed.flashlight = parsed.flashlight.map(k => k === "f" ? "g" : k);
+        saveBindings();
       }
       return { ...DEFAULT_BINDINGS, ...parsed };
     }

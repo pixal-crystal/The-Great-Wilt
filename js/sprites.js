@@ -88,6 +88,7 @@ const BIGS = {
   Blood: { file:"Blood_Monster_A.png", idle:[0,6], walk:[1,8], atk:[2,8], hit:[4,4], death:[5,4], fx:52, fy:57 },
 };
 function drawFoeSprite(c, spr, anim, t, dir, x, y, scale = 1, a = 1) {
+  if (spr[0] === "tile") { const r = TS16[spr[1]]; if (!r) return; t16(c, spr[1], Math.round(x - r[2] * scale / 2), Math.round(y - r[3] * scale), r[2] * scale, r[3] * scale, a * (anim === "hit" ? 0.6 : 1)); return; }
   if (spr[0] === "tiny") {
     const sp = TINY[spr[1]], im = img(PATHS.tiny + sp.file); if (!ok(im)) return;
     const an = sp[anim] || sp.idle;

@@ -14,21 +14,30 @@
   <div id="err"></div>
   <div id="stage"><canvas id="game"></canvas></div>
   <div id="top-bar">
-    <button id="quest-btn" class="top-btn" onclick="openPanel(questsPanel)" title="Quests &amp; Objectives (Q)">📜 Quests</button>
-    <button id="inv-btn" class="top-btn" onclick="openPanel(invPanel)" title="Inventory (E)">🎒 Inventory</button>
+    <button id="inv-btn" class="top-btn" onclick="openPanel(invPanel)" title="Inventory (Tab)">🎒 Inventory</button>
     <button id="map-btn" class="top-btn" onclick="openPanel(pulsePanel)" title="The Pulse (M)">🗺 Pulse</button>
     <button id="guide-btn" class="top-btn" onclick="openPanel(tutorialPanel)" title="Tutorial &amp; Field Guide">📖 Guide</button>
+    <button id="flash-btn" class="top-btn hidden" onclick="toggleFlashlight()" title="Toggle Flashlight (G)">🔦 Light</button>
+    <button id="clean-view-btn" class="top-btn" onclick="toggleAllUI(true)" title="Clean Screen - Hide All UI (U)">👁 Clean View</button>
+    <button id="close-top-btn" class="top-btn" onclick="toggleTopBar(false)" title="Collapse Top Bar">▲ Hide</button>
   </div>
+  <button id="open-top-btn" class="top-btn hidden" onclick="toggleTopBar(true)" title="Expand Top Menu Bar">☰ Menu ▾</button>
+  <button id="ui-restore-btn" class="top-btn hidden" onclick="toggleAllUI(false)" title="Restore UI (U)">👁 Show UI [U]</button>
   <button id="settings-btn" onclick="openPanel(settingsPanel)" title="Settings &amp; Controls (O)">⚙ Settings</button>
   <div id="hud" class="hidden">
-    <div class="box" id="hudL"></div>
+    <div id="hud-col-l">
+      <div class="box" id="hudL"></div>
+      <div class="box quest-tracker" id="hudQuest"></div>
+    </div>
     <div class="box res" id="hudR"></div>
   </div>
   <div id="prompt" class="box hidden"></div>
   <div id="keys" class="hidden"></div>
+  <button id="keys-expand-btn" class="top-btn hidden" onclick="toggleKeysBar(true)" title="Show Controls Bar">⌨ Controls ▴</button>
   <div id="toast"></div>
   <div id="dialog" class="box hidden"></div>
   <div id="panel" class="hidden">
+    <button id="panel-floating-close" class="panel-floating-close" onclick="closePanel()" title="Close panel (Esc)">✕ Close [Esc]</button>
     <div class="box pbox" id="pbox"></div>
   </div>
   <div id="title"></div>
@@ -44,6 +53,7 @@
   <script src="js/progression.js"></script>
   <script src="js/panels.js"></script>
   <script src="js/tutorial.js"></script>
+  <script src="js/opening.js"></script>
   <script src="js/title.js"></script>
   <script src="js/main.js"></script>
 </body>
