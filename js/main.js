@@ -11,6 +11,7 @@ function frame(now) {
   if (fade.dir) { fade.a += fade.dir * dt * 4; if (fade.a >= 1 && fade.dir > 0) { fade.a = 1; fade.dir = -1; const cb = fade.cb; fade.cb = null; if (cb) cb(); } if (fade.a <= 0 && fade.dir < 0) { fade.a = 0; fade.dir = 0; } }
   if (fade.a > 0) { ctx.setTransform(S, 0, 0, S, 0, 0); ctx.fillStyle = `rgba(0,0,0,${fade.a})`; ctx.fillRect(0, 0, VW, VH); }
   hudT -= dt; if (hudT <= 0 && mode === "world") { hudT = 0.25; renderHud(); }
+  if (typeof updateMusic === "function") updateMusic(dt);
   pressed = {};
   requestAnimationFrame(frame);
 }

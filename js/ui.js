@@ -145,6 +145,13 @@ const uiOpen = () => !!DLG || panelOpen || fade.a > 0.6;
 function onKeyUI(k) {
   if (isActionKey("fullscreen", k)) { toggleFullscreen(); pressed[k] = false; return; }
   if (isActionKey("toggleui", k)) { toggleAllUI(); pressed[k] = false; return; }
+  if (isActionKey("mute", k) || k === "n") {
+    if (typeof toggleMusicMute === "function") {
+      toggleMusicMute();
+      pressed[k] = false;
+      return;
+    }
+  }
   if (isActionKey("flashlight", k) || k === "g" || k === "l") {
     if (mode === "world" || mode === "encounter") {
       toggleFlashlight();
@@ -219,6 +226,17 @@ function renderHud() {
     fb.style.color = flashOn ? "#ffe46a" : "var(--muted)";
     const fK = keyLabel((BINDINGS.flashlight && BINDINGS.flashlight[0]) || "g");
     fb.innerHTML = `🔦 ${flashOn ? "Light ON" : "Light OFF"} [${fK}]`;
+  }
+
+  const mb = document.getElementById("music-btn");
+  if (mb) {
+    const muted = typeof isMusicMuted === "function" && isMusicMuted();
+    const track = typeof getCurrentTrackInfo === "function" ? getCurrentTrackInfo() : null;
+    const mK = (typeof BINDINGS !== "undefined" && BINDINGS.mute && BINDINGS.mute[0]) ? keyLabel(BINDINGS.mute[0]) : "N";
+    mb.innerHTML = muted ? `🔇 Music: OFF [${mK}]` : `🎵 Music: ON [${mK}]`;
+    mb.style.borderColor = muted ? "#666" : "var(--amber)";
+    mb.style.color = muted ? "var(--muted)" : "#ffe46a";
+    mb.title = muted ? `Unmute Ambient Music (${mK})` : `Mute Ambient Music (${mK}) — ${track ? track.title : "Ambient"}`;
   }
 
   if (!show || !G) return;

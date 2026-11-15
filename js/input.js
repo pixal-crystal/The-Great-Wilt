@@ -51,6 +51,7 @@ const DEFAULT_BINDINGS = {
   fullscreen: ["f11"],
   toggleui: ["u"],
   flashlight: ["g", "l"],
+  mute: ["n"],
 };
 
 const BINDING_ACTIONS = [
@@ -61,6 +62,7 @@ const BINDING_ACTIONS = [
   { id: "run", label: "Run / Dash", category: "Movement" },
   { id: "interact", label: "Interact / Confirm", category: "Interactions" },
   { id: "flashlight", label: "Toggle Silt Flashlight", category: "Interactions" },
+  { id: "mute", label: "Toggle Ambient Music", category: "Audio" },
   { id: "quests", label: "Quests Menu", category: "Menus" },
   { id: "pack", label: "Inventory (Pack & Grafts)", category: "Menus" },
   { id: "pulse", label: "The Pulse Map", category: "Menus" },

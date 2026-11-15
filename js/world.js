@@ -41,6 +41,8 @@ function enterRegion(id, from) {
   cam.leadX = 0; cam.leadY = 0;
   spawnFoes(); spawnWarden();
   mode = "world"; encCooldown = 1; save(); renderHud();
+  if (typeof clearPreview === "function" && typeof getPreviewTrackId === "function" && getPreviewTrackId()) clearPreview();
+  if (typeof updateMusic === "function") updateMusic(0);
 }
 function spawnFoes() {
   WFOES = [];

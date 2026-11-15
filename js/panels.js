@@ -347,7 +347,7 @@ function drawPulse() {
 
 function settingsPanel() {
   const fs = isFullscreen();
-  const cats = ["Movement", "Interactions", "Combat", "Menus", "Display"];
+  const cats = ["Movement", "Interactions", "Combat", "Menus", "Display", "Audio"];
 
   const catHTML = cats.map(cat => {
     const list = BINDING_ACTIONS.filter(a => a.category === cat);
@@ -449,6 +449,61 @@ function settingsPanel() {
         <button onclick="toggleFlashlight();refreshPanel()">
           ${G && G.flashlight !== false ? "🔦 Flashlight: ON" : "Flashlight: OFF"}
         </button>
+      </div>
+    </div>
+
+    <!-- AMBIENT MUSIC & AUDIO -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:15px;font-weight:600;color:var(--amber)">🎵 Ambient Music &amp; Audio</div>
+        <div class="small muted">6 Fantasy Ambient Tracks by AlkaKrab</div>
+      </div>
+
+      <!-- Current Track & Mute -->
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;padding:8px 10px;background:#111;border:1px solid #333;border-radius:3px">
+        <div>
+          <div><b>Status:</b> ${typeof isMusicMuted === "function" && isMusicMuted() ? '<span style="color:#ff6b6b">🔇 Muted</span>' : '<span style="color:#6fcf6a">🎵 Playing</span>'} · <b>Now Playing:</b> <span style="color:#ffe46a">${typeof getCurrentTrackInfo === "function" ? getCurrentTrackInfo().title : "Ambient"}</span> <span class="tag">${typeof getCurrentTrackInfo === "function" ? getCurrentTrackInfo().environment : ""}</span></div>
+          <div class="small muted" style="margin-top:2px">${typeof getCurrentTrackInfo === "function" ? getCurrentTrackInfo().desc : ""}</div>
+        </div>
+        <div class="row" style="gap:6px">
+          ${typeof getPreviewTrackId === "function" && getPreviewTrackId() ? '<button onclick="clearPreview()" title="Resume automatic environment soundtrack">↺ Auto Mode</button>' : ''}
+          <button class="${typeof isMusicMuted === "function" && isMusicMuted() ? '' : 'pri'}" onclick="toggleMusicMute();refreshPanel()">
+            ${typeof isMusicMuted === "function" && isMusicMuted() ? '🔇 Unmute Music [N]' : '🎵 Mute Music [N]'}
+          </button>
+        </div>
+      </div>
+
+      <!-- Volume Slider -->
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;padding:8px 10px;background:#111;border:1px solid #333;border-radius:3px">
+        <div>
+          <b>Music Volume:</b> <span id="vol-pct" style="color:var(--amber);font-weight:600">${typeof getMusicVolume === "function" ? Math.round(getMusicVolume() * 100) : 65}%</span>
+          <div class="small muted">Dynamic ambient crossfading adapts seamlessly between biomes and encounters.</div>
+        </div>
+        <div class="row" style="gap:8px">
+          <input type="range" min="0" max="100" value="${typeof getMusicVolume === "function" ? Math.round(getMusicVolume() * 100) : 65}" style="width:140px;cursor:pointer"
+            oninput="if(typeof setMusicVolume==='function') setMusicVolume(this.value / 100);document.getElementById('vol-pct').innerText = this.value + '%'">
+        </div>
+      </div>
+
+      <!-- Biome Soundtracks & Previews -->
+      <div style="font-size:13px;font-weight:600;color:var(--amber);margin:10px 0 6px">Environment Soundtracks &amp; Soundboard</div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:6px">
+        ${typeof MUSIC_TRACKS !== "undefined" ? Object.values(MUSIC_TRACKS).map(tr => {
+          const curInfo = typeof getCurrentTrackInfo === "function" ? getCurrentTrackInfo() : null;
+          const isCur = curInfo && curInfo.id === tr.id;
+          const isMuted = typeof isMusicMuted === "function" && isMusicMuted();
+          return `<div class="card ${isCur ? 'on' : ''}" style="padding:6px 10px;background:#0d0d0d">
+            <div class="row" style="justify-content:space-between;align-items:center">
+              <div>
+                <b style="color:${isCur ? '#ffe46a' : '#ddd'};font-size:13px">${tr.title}</b>
+                <div class="small muted">🌍 ${tr.environment}</div>
+              </div>
+              <button style="font-size:11px;padding:2px 7px" onclick="previewTrack('${tr.id}')">
+                ${isCur && !isMuted ? '▶ Active' : '▷ Audition'}
+              </button>
+            </div>
+          </div>`;
+        }).join('') : ''}
       </div>
     </div>
 

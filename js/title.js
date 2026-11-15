@@ -1,5 +1,6 @@
 function showTitle() {
   mode = "title"; renderHud(); DLG = null; document.getElementById("dialog").classList.add("hidden");
+  if (typeof updateMusic === "function") updateMusic(0);
   const s = loadSave(), el = document.getElementById("title"); el.classList.remove("hidden");
   const prog = computeQuestProgress(s);
   el.innerHTML = `<div class="in">
@@ -28,7 +29,8 @@ function showTitle() {
       <kbd>Space</kbd> right as you hit a wall = <b>Parry</b>. <kbd>Shift</kbd> dash, <kbd>1</kbd>–<kbd>5</kbd> graft abilities, <kbd>H</kbd> tonic, <kbd>B</kbd> bomb, hold <kbd>Esc</kbd> to flee.
     </div>
     <div class="small muted" style="margin-top:14px">Characters: Super Retro World Character Pack by Gif (@gif_not_jif), Noiracide (@Noiracide) &amp; Romi (@DessRomaric) ·
-    Enemies: Tiny Enemies Vol1 by Vryell (@Vryell) and Tiny RPG Character Asset Pack 02 · Tiles &amp; icons: Raven Fantasy — Clockwork Raven Studios.</div></div>`;
+    Enemies: Tiny Enemies Vol1 by Vryell (@Vryell) and Tiny RPG Character Asset Pack 02 · Tiles &amp; icons: Raven Fantasy — Clockwork Raven Studios ·
+    Ambient Music: 6 Fantasy Ambient Tracks by AlkaKrab.</div></div>`;
 }
 function beginGame(fresh) {
   if (fresh) newGame(); else { G = loadSave(); if (!G) newGame(); }
