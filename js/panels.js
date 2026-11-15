@@ -1,6 +1,6 @@
 function symbMeterHTML() {
   const s = symbiosis(), max = 14;
-  return `<div class="row small" style="justify-content:space-between"><span>${iconHTML(ICON.symb, 16)} Symbiosis ${s}/${SYMB_CAP}</span><span style="color:${overgrown() ? "#e0473f" : "#a7ada3"}">${overgrown() ? "OVERGROWTH: +50% dmg, +10 HP, fire ×2, industrial towns refuse you" : `grafts ${graftLoad()} + taint ${G.taint}`}</span></div>
+  return `<div class="row small" style="justify-content:space-between"><span>${iconHTML(ICON.symb, 16)} Symbiosis ${s}/${SYMB_CAP}</span><span style="color:${overgrown() ? "#e0473f" : "#a7ada3"}">${overgrown() ? "OVERGROWTH: +1 damage, +2 max HP, fire ×2, industrial towns refuse you" : `grafts ${graftLoad()} + taint ${G.taint}${bladeSymb() ? ` + blade ${bladeSymb()}` : ""}`}</span></div>
     <div class="meter ${overgrown() ? "over" : ""}"><i style="width:${Math.min(100, s / max * 100)}%"></i><b style="left:${SYMB_CAP / max * 100}%"></b></div>`;
 }
 function slotsHTML(editable) {
@@ -18,6 +18,8 @@ function shopPanel() {
   const id = G.loc, R = REGIONS[id], st = status(G.regions[id].bal);
   let m = st === "depleted" ? 1.5 : 1; if (R.rootSinger && has("pheromone")) m *= 0.8; if (R.rootSinger && overgrown()) m *= 0.9;
   const rows = R.shop.map(([kind, key, base]) => { const price = Math.ceil(base * m);
+    if (kind === "part") { const pt = PARTS[key], own = G.arms.parts.includes(key);
+      return `<div class="card row">${iconHTML(pt.icon, 32)}<div style="flex:1"><b>${pt.name}</b> <span class="tag">Sword · ${PART_SLOTS[pt.slot]}</span> <span class="tag" style="color:${LEAN_COL[pt.lean]}">${pt.lean}</span><div class="small muted">${pt.desc}</div></div><button ${own || G.res.coins < price ? "disabled" : ""} onclick="buy('part','${key}',${price})">${own ? "Owned" : iconHTML(ICON.coins, 16) + price}</button></div>`; }
     if (kind === "graft") { const g = GRAFTS[key], own = G.owned.includes(key);
       return `<div class="card row">${iconHTML(g.icon, 32)}<div style="flex:1"><b>${g.name}</b> <span class="tag">${SLOT_NAMES[g.slot]} · T${g.tier}</span><div class="small muted">${g.desc}</div></div><button ${own || G.res.coins < price ? "disabled" : ""} onclick="buy('graft','${key}',${price})">${own ? "Owned" : iconHTML(ICON.coins, 16) + price}</button></div>`; }
     return `<div class="card row">${iconHTML(ICON[key], 32)}<div style="flex:1"><b>${RES_NAMES[key]}</b></div><button ${G.res.coins < price ? "disabled" : ""} onclick="buy('item','${key}',${price})">${iconHTML(ICON.coins, 16)}${price}</button></div>`; }).join("");
@@ -26,20 +28,210 @@ function shopPanel() {
   return `<div class="row">${charHTML(R.merchant.char, 3)}<div><h2>${R.merchant.name}</h2><div class="small muted">Prices ×${m.toFixed(2)}${st === "depleted" ? " (scarcity)" : ""} · You have ${iconHTML(ICON.coins, 16)}${G.res.coins}</div></div></div>
     <h3>Buy</h3><div style="display:flex;flex-direction:column;gap:6px">${rows}</div><h3>Sell</h3><div class="row">${sells}</div>`;
 }
-function buy(kind, key, price) { if (G.res.coins < price) return; G.res.coins -= price; if (kind === "graft") { G.owned.push(key); toast(`New graft: ${GRAFTS[key].name}`, "#9ad04a"); } else G.res[key]++; refreshPanel(); }
+function buy(kind, key, price) { if (G.res.coins < price) return; G.res.coins -= price; if (kind === "graft") { G.owned.push(key); toast(`New graft: ${GRAFTS[key].name}`, "#9ad04a"); } else if (kind === "part") { G.arms.parts.push(key); toast(`New sword part: ${PARTS[key].name}`, "#ffe08a"); } else G.res[key]++; refreshPanel(); }
 function sell(k, pr) { if (G.res[k] < 1) return; G.res[k]--; G.res.coins += pr; refreshPanel(); }
 function refineryRecipes() { const k = G.companion === "kaelen" ? 1 : 0; return [["bombs", { sap:Math.max(1, 2 - k), crystal:1 }], ["potions", { sap:Math.max(1, 2 - k), seeds:1 }]]; }
+function panelTabsHTML(activeTab) {
+  const pK = keyLabel((BINDINGS.pack && BINDINGS.pack[0]) || "i");
+  const qK = keyLabel((BINDINGS.quests && BINDINGS.quests[0]) || "q");
+  const mK = keyLabel((BINDINGS.pulse && BINDINGS.pulse[0]) || "m");
+  const oK = keyLabel((BINDINGS.settings && BINDINGS.settings[0]) || "o");
+  return `<div class="panel-tabs">
+    <button class="panel-tab ${activeTab === 'inv' ? 'active' : ''}" onclick="openPanel(invPanel)">${iconHTML(ICON.chest, 16)} Grafts &amp; Pack [${pK}]</button>
+    <button class="panel-tab ${activeTab === 'quests' ? 'active' : ''}" onclick="openPanel(questsPanel)">${iconHTML(ICON.echo, 16)} Quests [${qK}]</button>
+    <button class="panel-tab ${activeTab === 'armory' ? 'active' : ''}" onclick="openPanel(armoryPanel)">${iconHTML(sword().icon, 16)} Armory</button>
+    <button class="panel-tab ${activeTab === 'camp' ? 'active' : ''}" onclick="openPanel(campPanel)">${tileHTML("tent", 0.35)} Caravan</button>
+    <button class="panel-tab ${activeTab === 'pulse' ? 'active' : ''}" onclick="openPanel(pulsePanel)">${iconHTML(REGIONS.sun.icon, 16)} The Pulse [${mK}]</button>
+    <button class="panel-tab ${activeTab === 'settings' ? 'active' : ''}" onclick="openPanel(settingsPanel)">⚙ Settings [${oK}]</button>
+  </div>`;
+}
+
+function questsPanel() {
+  const echoesCount = G.echoes.length;
+  const rootsUnlocked = echoesCount >= 3;
+
+  const echoSources = [
+    {
+      region: "sun",
+      name: "The Sun-Crown Echo",
+      desc: "Recovered by hunting the Sun-Warden or calming it via Restoration Ritual.",
+      done: G.echoes.includes("sun") || (G.regions.sun && G.regions.sun.echo),
+    },
+    {
+      region: "trunk",
+      name: "The Twilight Trunk Echo",
+      desc: "Recovered by hunting the Trunk-Warden or calming it via Restoration Ritual.",
+      done: G.echoes.includes("trunk") || (G.regions.trunk && G.regions.trunk.echo),
+    },
+    {
+      region: "silt",
+      name: "The Silt-Floor Echo",
+      desc: "Recovered from Silt-Warden (hunt/ritual) or by breaching the pre-collapse vault with Bram &amp; Pip.",
+      done: G.echoes.includes("silt") || (G.regions.silt && (G.regions.silt.echo || G.regions.silt.bunker)),
+    },
+    {
+      region: "glass",
+      name: "The Glass-Marsh Echo",
+      desc: "Recovered from Glass-Warden (hunt/ritual) or by breaching the pre-collapse vault with Bram &amp; Pip.",
+      done: G.echoes.includes("glass") || (G.regions.glass && (G.regions.glass.echo || G.regions.glass.bunker)),
+    },
+  ];
+
+  const symbReady = overgrown() || G.stats.rituals >= 2;
+  const domReady = G.companion === "kaelen" && G.res.scrap >= 10;
+  const migReady = G.companion === "bram" && Object.values(G.upgrades).every(Boolean);
+
+  const regionCards = Object.entries(REGIONS).map(([id, R]) => {
+    const reg = G.regions[id];
+    const st = status(reg.bal);
+    const col = STATUS_COLOR[st];
+    let advice = "";
+    if (st === "enraged") {
+      advice = `<span style="color:#e0473f;font-weight:600">⚠ Apex Warden prowling! Hunt it in combat or perform a Restoration Ritual at camp (2 Rare Seeds, 3 Sap, 2 Seeds) to prevent total collapse.</span>`;
+    } else if (st === "depleted") {
+      advice = `<span style="color:#e8cf4a">Ecosystem strained. Clear rusted industrial waste patches (+6 balance, +1 scrap) to revive the soil.</span>`;
+    } else {
+      advice = `<span style="color:#6fcf6a">Canopy stable. Daily drift is −${G.drift[id] || 2} balance/day. Harvest moderately.</span>`;
+    }
+    return `<div class="card" style="border-left:4px solid ${col}">
+      <div class="row" style="justify-content:space-between">
+        <span class="row" style="gap:6px">${iconHTML(R.icon, 20)}<b>${R.name}</b></span>
+        <span class="chip ${st}">${STATUS_LABEL[st]} ${reg.bal}/100</span>
+      </div>
+      <div class="small muted" style="margin:4px 0 6px">${R.desc}</div>
+      <div class="small">${advice}</div>
+    </div>`;
+  }).join("");
+
+  const upsList = Object.entries(UPGRADES).map(([uid, U]) => {
+    const built = G.upgrades[uid];
+    return `<div class="quest-step ${built ? "done" : "pending"}">
+      <span class="chk">${built ? "✓" : "○"}</span>
+      <div style="flex:1"><b>${U.name}</b>: ${built ? `<span style="color:#6fcf6a">Operational</span>` : `<span class="muted">${costHTML(U.cost)}</span>`} <span class="small muted">(${U.desc})</span></div>
+    </div>`;
+  }).join("");
+
+  const bunkersList = [
+    { loc: "silt", name: "Silt-Floor Pre-Collapse Vault", done: G.regions.silt && G.regions.silt.bunker },
+    { loc: "glass", name: "Glass-Marsh Pre-Collapse Vault", done: G.regions.glass && G.regions.glass.bunker },
+  ].map(b => `<div class="quest-step ${b.done ? "done" : "pending"}">
+    <span class="chk">${b.done ? "✓" : "○"}</span>
+    <div style="flex:1"><b>${b.name}</b>: ${b.done ? `<span style="color:#6fcf6a">Breached &amp; Echo Decoded</span>` : (G.companion === "bram" ? `<span style="color:#ffe46a">Bram &amp; Pip ready — locate mossy bunker door</span>` : `<span class="muted">Bring Bram &amp; Pip to crack the seal</span>`)}</div>
+  </div>`).join("");
+
+  const echoLogs = Object.entries(ECHOES).map(([id, text]) => {
+    const hasEcho = G.echoes.includes(id) || G.echoes.includes(id + "Bunker") || (G.regions[id] && (G.regions[id].echo || G.regions[id].bunker));
+    const title = id.toUpperCase() + " SECTOR FREQUENCY";
+    if (hasEcho) {
+      return `<div class="echo-log"><b>[DECODED // ${title}]</b>\n${esc(text)}</div>`;
+    }
+    return `<div class="echo-log unfound"><b>[ENCRYPTED // ${title}]</b>\nSignal locked. Retrieve this Root Echo via combat, ritual, or bunker exploration.</div>`;
+  }).join("");
+
+  return `${panelTabsHTML("quests")}
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <div>
+        <h2>Quests &amp; Objectives</h2>
+        <div class="small muted">Track the Great Wilt, canopy biomes, and caravan milestones.</div>
+      </div>
+      <div class="row" style="gap:6px">
+        <span class="chip ${rootsUnlocked ? "balanced" : "depleted"}">${iconHTML(ICON.echo, 14)} ${echoesCount}/3 Root Echoes</span>
+        <span class="chip ${overgrown() ? "enraged" : "balanced"}">${iconHTML(ICON.symb, 14)} Symbiosis ${symbiosis()}/${SYMB_CAP}</span>
+      </div>
+    </div>
+
+    <!-- MAIN QUEST -->
+    <div class="quest-card main">
+      <div class="quest-header">
+        <span class="quest-title">${iconHTML(ICON.echo, 20)} MAIN QUEST: Protocol PALE &amp; The Iron Roots</span>
+        <span class="chip ${rootsUnlocked ? "balanced" : "depleted"}">${rootsUnlocked ? "Roots Unsealed" : "Echoes Needed"}</span>
+      </div>
+      <div class="small" style="margin-bottom:10px;line-height:1.4">
+        A calcifying blight creeps upward from the subterranean <b>Iron Roots</b>. Ancient protocol <b>PALE</b> is preparing to reset VERDANT-9.
+        Retrieve <b>3 Root Echoes</b> to bypass the acoustic barrier south of the Silt-Floor, penetrate the Iron Roots, and reach the Root-Core.
+      </div>
+
+      <div style="font-weight:600;font-size:14px;color:var(--amber);margin-bottom:6px">Stage 1: Gather 3 Root Echoes (${echoesCount}/3)</div>
+      <div style="margin-left:4px;margin-bottom:10px">
+        ${echoSources.map(s => `
+          <div class="quest-step ${s.done ? "done" : "pending"}">
+            <span class="chk">${s.done ? "✓" : "○"}</span>
+            <div style="flex:1"><b>${s.name}</b> — <span class="${s.done ? "muted" : ""}">${s.desc}</span> ${s.done ? `<span style="color:#6fcf6a;font-weight:600"> [RECOVERED]</span>` : `<span class="muted">[Pending]</span>`}</div>
+          </div>
+        `).join("")}
+      </div>
+
+      <div style="font-weight:600;font-size:14px;color:var(--amber);margin-bottom:6px">Stage 2: Breach The Iron Roots</div>
+      <div class="quest-step ${rootsUnlocked ? "done" : "pending"}" style="margin-left:4px;margin-bottom:10px">
+        <span class="chk">${rootsUnlocked ? "✓" : "○"}</span>
+        <div style="flex:1">
+          <b>Iron Roots Southern Gate</b>:
+          ${rootsUnlocked ? `<span style="color:#6fcf6a;font-weight:600">UNSEALED!</span> Travel south through the Silt-Floor exit down into the Iron Roots.` : `<span style="color:#e8cf4a">SEALED</span> — Collect ${3 - echoesCount} more Root Echo(es) to learn the passkey.`}
+        </div>
+      </div>
+
+      <div style="font-weight:600;font-size:14px;color:var(--amber);margin-bottom:6px">Stage 3: Endings Preparation (At the Root-Core)</div>
+      <div class="grid" style="margin-top:6px">
+        <div class="card ${symbReady ? "on" : ""}">
+          <div class="row" style="justify-content:space-between"><b>Symbiosis</b> <span class="tag ${symbReady ? "balanced" : ""}" style="color:${symbReady ? "#6fcf6a" : "var(--muted)"}">${symbReady ? "Ready" : "Incomplete"}</span></div>
+          <div class="small muted" style="margin:4px 0">Merge with the neural-root to rewrite PALE.</div>
+          <div class="small">Req: Overgrowth (${overgrown() ? "✓ Yes" : "No, " + symbiosis() + "/8"}) OR 2 Rituals (${G.stats.rituals >= 2 ? "✓ " + G.stats.rituals + "/2" : G.stats.rituals + "/2"}).</div>
+        </div>
+        <div class="card ${domReady ? "on" : ""}">
+          <div class="row" style="justify-content:space-between"><b>Dominion</b> <span class="tag ${domReady ? "balanced" : ""}" style="color:${domReady ? "#6fcf6a" : "var(--muted)"}">${domReady ? "Ready" : "Incomplete"}</span></div>
+          <div class="small muted" style="margin:4px 0">Sever the Root-Core with industrial steam technology.</div>
+          <div class="small">Req: Active companion Kaelen (${G.companion === "kaelen" ? "✓ Yes" : "Travel with Kaelen"}) + 10 Scrap (${G.res.scrap >= 10 ? "✓ " + G.res.scrap + "/10" : G.res.scrap + "/10"}).</div>
+        </div>
+        <div class="card ${migReady ? "on" : ""}">
+          <div class="row" style="justify-content:space-between"><b>Migration</b> <span class="tag ${migReady ? "balanced" : ""}" style="color:${migReady ? "#6fcf6a" : "var(--muted)"}">${migReady ? "Ready" : "Incomplete"}</span></div>
+          <div class="small muted" style="margin:4px 0">Reinforce the Strider-Caravan and flee into the open sea.</div>
+          <div class="small">Req: Active companion Bram &amp; Pip (${G.companion === "bram" ? "✓ Yes" : "Travel with Bram"}) + All 3 Caravan Upgrades (${Object.values(G.upgrades).filter(Boolean).length}/3).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REGIONAL ECOLOGY -->
+    <h3>Canopy Stewardship (Regional Balance)</h3>
+    <div class="grid">${regionCards}</div>
+
+    <!-- CARAVAN & VAULTS -->
+    <div class="grid" style="margin-top:14px">
+      <div class="card">
+        <div class="quest-title" style="margin-bottom:6px">${tileHTML("tent", 0.4)} Caravan Upgrades</div>
+        <div class="small muted" style="margin-bottom:8px">Build facilities on the Strider-Caravan to expand your survival options.</div>
+        ${upsList}
+      </div>
+      <div class="card">
+        <div class="quest-title" style="margin-bottom:6px">${iconHTML(ICON.lock, 18)} Pre-Collapse Bunkers</div>
+        <div class="small muted" style="margin-bottom:8px">Ancient Directorate facilities hidden under the canopy ruins.</div>
+        ${bunkersList}
+      </div>
+    </div>
+
+    <!-- LORE ARCHIVE -->
+    <h3>Decoded Root Echoes Archive</h3>
+    <div style="display:flex;flex-direction:column;gap:6px">${echoLogs}</div>
+
+    <!-- EXPEDITION LOG -->
+    <h3>Recent Expedition Log</h3>
+    <div class="small muted" style="max-height:120px;overflow:auto;background:#090909;border:1px solid #333;padding:8px 10px;border-radius:3px">
+      ${G.log.slice(0, 15).map(l => `<div>${esc(l)}</div>`).join("") || "— No log entries yet —"}
+    </div>
+  `;
+}
+
 function campPanel() {
   const comps = Object.entries(COMPANIONS).map(([id, C]) => `<div class="card ${G.companion === id ? "on" : ""}"><div class="row">${charHTML(C.char, 3)}<div style="flex:1"><b>${C.name}</b><div class="small muted">${C.role}</div></div></div>
-    <div class="small" style="margin:4px 0">${C.blurb}</div><ul class="small muted" style="margin:0;padding-left:16px">${C.perks.map(p => `<li>${p}</li>`).join("")}</ul>
+    <div class="small" style="margin:4px 0">${C.blurb}</div><ul class="small muted" style="margin:0;padding-left:16px">${C.perks.map(p => `<li>${p}</li>`).join("")}</ul>${compProgressHTML(id)}
     <div style="margin-top:6px">${G.companion === id ? `<span class="small" style="color:#6fcf6a">Travelling with you</span>` : `<button onclick="G.companion='${id}';refreshPanel()">Bring along</button>`}</div></div>`).join("");
   const ups = Object.entries(UPGRADES).map(([id, U]) => `<div class="card"><div class="row">${iconHTML(U.icon, 32)}<div style="flex:1"><b>${U.name}</b><div class="small muted">${U.desc}</div></div></div>
     <div style="margin-top:6px">${G.upgrades[id] ? `<span class="small" style="color:#6fcf6a">Built</span>` : `<button ${canAfford(U.cost) ? "" : "disabled"} onclick="build('${id}')">Build — ${costHTML(U.cost)}</button>`}</div></div>`).join("");
   const breed = G.upgrades.greenhouse ? BREED.map(([gid, cost]) => { const g = GRAFTS[gid], own = G.owned.includes(gid);
     return `<button style="justify-content:flex-start;text-align:left" ${own || !canAfford(cost) ? "disabled" : ""} onclick="breedGraft('${gid}')">${iconHTML(g.icon, 24)}<span><b>${g.name}</b><br><span class="small muted">${own ? "Already cultivated" : costHTML(cost)}</span></span></button>`; }).join("") : `<div class="small muted">Build the Apothecary Greenhouse to breed grafts.</div>`;
   const refine = G.upgrades.refinery ? refineryRecipes().map(([k, c]) => `<button ${canAfford(c) ? "" : "disabled"} onclick="refine('${k}')">${iconHTML(ICON[k], 20)}${RES_NAMES[k]} — ${costHTML(c)}</button>`).join(" ") : `<div class="small muted">Build the Sap-Refinery to craft bombs and tonics.</div>`;
-  return `<div class="row">${tileHTML("tent", 0.5)}<div><h2>The Strider-Caravan</h2><div class="small muted">Your rolling home on the canopy highways.</div></div></div>
-    <div class="row" style="margin-top:8px"><button ${G.res.potions < 1 || G.hp >= maxHp() ? "disabled" : ""} onclick="G.res.potions--;G.hp=Math.min(maxHp(),G.hp+12);refreshPanel()">${iconHTML(ICON.potions, 20)}Drink Sap Tonic (+12 HP)</button>
+  return `${panelTabsHTML("camp")}
+    <div class="row">${tileHTML("tent", 0.5)}<div><h2>The Strider-Caravan</h2><div class="small muted">Your rolling home on the canopy highways.</div></div></div>
+    <div class="row" style="margin-top:8px"><button ${G.res.potions < 1 || G.hp >= maxHp() ? "disabled" : ""} onclick="G.res.potions--;G.hp=Math.min(maxHp(),G.hp+4);refreshPanel()">${iconHTML(ICON.potions, 20)}Drink Sap Tonic (+4 HP)</button>
     ${G.upgrades.greenhouse ? `<button onclick="openPanel(loadoutPanel)">${iconHTML(IC(15,7), 20)}Re-weave grafts</button>` : ""}</div>
     <h3>Companions</h3><div class="grid">${comps}</div><h3>Upgrades</h3><div class="grid">${ups}</div>
     <h3>Greenhouse breeding</h3><div class="grid">${breed}</div><h3>Refinery</h3><div class="row">${refine}</div>`;
@@ -49,9 +241,12 @@ function breedGraft(gid) { const c = BREED.find(b => b[0] === gid)[1]; if (!canA
 function refine(k) { const c = refineryRecipes().find(r => r[0] === k)[1]; if (!canAfford(c)) return; pay(c); G.res[k]++; refreshPanel(); }
 function invPanel() {
   const res = Object.keys(RES_NAMES).map(k => `<span class="row" style="gap:4px">${iconHTML(ICON[k], 22)}${RES_NAMES[k]}: <b>${G.res[k]}</b></span>`).join("");
-  return `<div class="row">${charHTML(CHAR.player, 3)}<div><h2>Graftwarden</h2><div class="small muted">HP ${Math.ceil(G.hp)}/${maxHp()} · Ricochet damage ${baseDmg()} · Day ${G.day} (${PHASES[G.phase]}) · Root Echoes ${G.echoes.length}/3</div></div></div>
+  return `${panelTabsHTML("inv")}
+    <div class="row">${charHTML(CHAR.player, 3)}<div><h2>Graftwarden</h2><div class="small muted">HP ${Math.ceil(G.hp)}/${maxHp()} · Ricochet damage ${baseDmg()} · Day ${G.day} (${PHASES[G.phase]}) · Root Echoes ${G.echoes.length}/3</div></div></div>
+    <h3>Level &amp; Growth</h3>${statsHTML()}
     <h3>Grafts</h3>${symbMeterHTML()}<div style="margin-top:6px">${slotsHTML(false)}</div>
     <div class="small muted" style="margin-top:4px">Re-weave grafts with a Root-Singer Elder (Twilight Trunk, Silt-Floor) or at camp once the Greenhouse is built. Owned: ${G.owned.map(id => GRAFTS[id].name).join(", ")}</div>
+    <h3>Blade</h3><div class="card row">${iconHTML(sword().icon, 32)}<div style="flex:1"><b style="color:${sword().col}">${sword().name}</b> <span class="tag">${sword().style}</span><div class="small muted">${sword().perk}</div><div class="small">Parts: ${Object.entries(G.arms.slots).map(([s, id]) => id ? PARTS[id].name : `<span class="muted">no ${s}</span>`).join(" · ")}${swordBio() ? ` · <span style="color:#7fd26a">Bio-Graft ${swordBio()}</span>` : ""}${swordTech() ? ` · <span style="color:#ffb35a">Tech-Forge ${swordTech()}</span>` : ""}</div></div><button onclick="openPanel(armoryPanel)">Armory</button></div>
     <h3>Pack</h3><div class="grid small">${res}</div>
     <h3>Fighting (Kinetic Ricochet)</h3><div class="small">Drag back from anywhere and release to launch yourself — time slows while you aim. Speed is power: <span style="color:#5fb3ff">blue</span> → <span style="color:#ffd94a">yellow</span> → <span style="color:#ff5a3c">red</span> → white-hot.
     Slow wall hits crack your shell (3 cracks = shatter). Tap <kbd>Space</kbd> the instant you hit a wall to PARRY: double speed and repair a crack. Chain bounces for style ranks and bonus damage.
@@ -86,9 +281,10 @@ function buildPulseBg() {
 }
 function pulsePanel() {
   setTimeout(drawPulse, 0);
-  return `<h2>The Pulse</h2><div class="small muted">Living heatmap of each region's ecological balance. Every day each region drifts toward crimson. ${G.upgrades.mast || G.companion === "sylva" ? "▼ shows tomorrow's expected loss." : "Build a Signal-Mast (or travel with Sylva) to see the forecast."}</div>
+  return `${panelTabsHTML("pulse")}
+    <h2>The Pulse</h2><div class="small muted">Living heatmap of each region's ecological balance. Every day each region drifts toward crimson. ${G.upgrades.mast || G.companion === "sylva" ? "▼ shows tomorrow's expected loss." : "Build a Signal-Mast (or travel with Sylva) to see the forecast."}</div>
     <canvas id="pulsec" width="960" height="620" style="width:100%;margin-top:8px;image-rendering:pixelated"></canvas>
-    <div class="row small" style="margin-top:6px"><span style="color:#6fcf6a">■ Balanced ≥60</span><span style="color:#e8cf4a">■ Depleted 30–59</span><span style="color:#e0473f">■ Enraged &lt;30 (Apex Warden)</span><span class="muted">· Press M or Esc to close</span></div>`;
+    <div class="row small" style="margin-top:6px"><span style="color:#6fcf6a">■ Balanced ≥60</span><span style="color:#e8cf4a">■ Depleted 30–59</span><span style="color:#e0473f">■ Enraged &lt;30 (Apex Warden)</span><span class="muted">· Press M, Q, I or Esc to navigate</span></div>`;
 }
 function drawPulse() {
   const c = document.getElementById("pulsec"); if (!c) return;
@@ -107,4 +303,62 @@ function drawPulse() {
   const here = AREA(G.loc).pos, im = img(charPath(CHAR.player));
   if (ok(im)) x.drawImage(im, 16, 0, 16, 20, here[0] + 34, here[1] - 40, 32, 40);
   lbl("YOU", here[0] + 50, here[1] - 44, "#ffe46a", "12px 'Pixelify Sans'");
+}
+
+function settingsPanel() {
+  const fs = isFullscreen();
+  const cats = ["Movement", "Interactions", "Combat", "Menus", "Display"];
+
+  const catHTML = cats.map(cat => {
+    const list = BINDING_ACTIONS.filter(a => a.category === cat);
+    const rows = list.map(a => {
+      const isRebinding = rebindingAction === a.id;
+      const curKey = (BINDINGS[a.id] && BINDINGS[a.id][0]) || "";
+      const label = isRebinding ? `<span style="color:#ffe46a">Press any key... (Esc to cancel)</span>` : `<kbd style="font-size:13px;padding:3px 8px;background:#222">${keyLabel(curKey)}</kbd>`;
+      return `<div class="row" style="justify-content:space-between;padding:6px 10px;background:#111;border:1px solid #333;border-radius:3px;margin-bottom:4px">
+        <span style="font-size:13px"><b>${a.label}</b></span>
+        <button style="${isRebinding ? "border-color:var(--amber);background:#332912" : ""}" onclick="startRebind('${a.id}')">${label}</button>
+      </div>`;
+    }).join("");
+
+    return `<div style="margin-bottom:12px">
+      <div style="font-size:14px;color:var(--amber);font-weight:600;margin-bottom:6px">${cat}</div>
+      ${rows}
+    </div>`;
+  }).join("");
+
+  return `${panelTabsHTML("settings")}
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <div>
+        <h2>Settings &amp; Controls</h2>
+        <div class="small muted">Configure display options and customize your keyboard controls.</div>
+      </div>
+    </div>
+
+    <!-- DISPLAY / FULLSCREEN -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:15px;font-weight:600;color:var(--amber);margin-bottom:6px">Screen &amp; Display</div>
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div>
+          <b>Fullscreen Mode</b>
+          <div class="small muted">Scale the game to fill your entire display. Shortcut: <kbd>${keyLabel((BINDINGS.fullscreen && BINDINGS.fullscreen[0]) || "f")}</kbd></div>
+        </div>
+        <button id="fs-btn" class="pri" style="font-size:14px;padding:6px 14px" onclick="toggleFullscreen();setTimeout(refreshPanel,60)">
+          ${fs ? "✕ Exit Fullscreen" : "⛶ Enter Fullscreen"}
+        </button>
+      </div>
+    </div>
+
+    <!-- CONTROLS & KEYBINDINGS -->
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:15px;font-weight:600;color:var(--amber)">Controls &amp; Keybindings</div>
+        <button onclick="resetBindings();refreshPanel()" title="Restore default key controls">↺ Reset to Defaults</button>
+      </div>
+      <div class="small muted" style="margin-bottom:12px">Click any key button below to change it. Press your new key on the keyboard, or <kbd>Esc</kbd> to cancel.</div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px">
+        ${catHTML}
+      </div>
+    </div>
+  `;
 }

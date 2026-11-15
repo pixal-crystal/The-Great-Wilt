@@ -1,30 +1,30 @@
 const ICON = {
   sap:IC(31,8), seeds:IC(26,0), rareSeeds:IC(28,15), scrap:IC(13,3), crystal:IC(10,13), spores:IC(15,8), coins:IC(8,2), potions:IC(17,8), bombs:IC(47,11),
-  echo:IC(20,14), hp:IC(41,2), stamina:IC(41,0), day:IC(0,11), symb:IC(41,12), lock:IC(7,15), warden:IC(53,15), clear:IC(57,0), chest:IC(0,5), sword:IC(45,0),
+  echo:IC(20,14), hp:IC(41,2), stamina:IC(41,0), day:IC(0,11), symb:IC(41,12), lock:IC(7,15), warden:IC(53,15), clear:IC(57,0), chest:IC(0,5), sword:IC(45,0), organs:IC(14,11),
 };
-const RES_NAMES = { sap:"Amber Sap", seeds:"Seeds", rareSeeds:"Rare Seeds", scrap:"Pre-collapse Scrap", crystal:"Moss Crystal", spores:"Spores", coins:"Barter Bits", potions:"Sap Tonic", bombs:"Resin Bomb" };
+const RES_NAMES = { sap:"Amber Sap", seeds:"Seeds", rareSeeds:"Rare Seeds", scrap:"Pre-collapse Scrap", crystal:"Moss Crystal", spores:"Spores", coins:"Barter Bits", potions:"Sap Tonic", bombs:"Resin Bomb", organs:"Monster Organ" };
 const CHAR = { player:16, kaelen:4, sylva:3, bram:9, elder:31 };
 const REGIONS = {
   sun: { name:"The Sun-Crown", icon:IC(61,13), pos:[480,92], industrial:true, sanctuary:false, sunlit:true,
     desc:"High-altitude canopy bathed in golden light; rope-bridges over open sky.",
     foes:["paleWisp","gliderImp","canopyBear"], warden:"sunWarden", merchant:{ char:1, name:"Turbine-Wright Oda" },
     yield:{ sap:[1,2], seeds:[1,2], coins:[3,6] }, nodes:{ sap:2, seeds:3, scrap:1 },
-    shop:[["graft","glider",32],["item","potions",6],["item","bombs",9]], tint:"rgba(255,205,90,0.10)" },
+    shop:[["graft","glider",32],["part","thermal",18],["item","potions",6],["item","bombs",9]], tint:"rgba(255,205,90,0.10)" },
   trunk: { name:"The Twilight Trunk", icon:IC(1,15), pos:[480,250], industrial:false, sanctuary:true, sunlit:false,
     desc:"Humid mid-layer of bark ridges, amber sap pools and hollow-tree markets.",
     foes:["amberToad","sapSpider","amberToad"], warden:"trunkWarden", merchant:{ char:14, name:"Hollow-Market Fenn" },
     yield:{ sap:[2,3], seeds:[1,2], coins:[3,6] }, nodes:{ sap:4, seeds:2 },
-    shop:[["graft","amber",40],["graft","beetle",24],["graft","thorn",14],["item","rareSeeds",12],["item","potions",6]], tint:"rgba(120,55,0,0.16)" },
+    shop:[["graft","amber",40],["graft","beetle",24],["graft","thorn",14],["part","nettle",12],["item","rareSeeds",12],["item","potions",6]], tint:"rgba(120,55,0,0.16)" },
   silt: { name:"The Silt-Floor", icon:IC(15,10), pos:[300,432], industrial:false, sanctuary:true, rootSinger:true, dark:true, bunker:true,
     desc:"Pitch-black floor of sunken skyscrapers, glowing ferns and toxic mist.",
     foes:["sporeShroom","siltShade","paleWatcher"], warden:"siltWarden", merchant:{ char:27, name:"Root-Singer Moss" },
     yield:{ spores:[2,3], scrap:[1,2], coins:[2,5] }, nodes:{ spores:3, scrap:3 },
-    shop:[["graft","sporeFilter",14],["graft","echoBulb",30],["graft","ocelli",30],["item","rareSeeds",10]], tint:"rgba(30,15,70,0.22)" },
+    shop:[["graft","sporeFilter",14],["graft","echoBulb",30],["graft","ocelli",30],["part","sporeSac",16],["part","tendon",14],["item","rareSeeds",10]], tint:"rgba(30,15,70,0.22)" },
   glass: { name:"The Glass-Marsh", icon:IC(1,9), pos:[660,432], industrial:true, sanctuary:false, sunlit:true, bunker:true,
     desc:"A flooded ruin where solar glass fused with crystal-growing moss.",
     foes:["prismEye","marshToad","shardCreature"], warden:"glassWarden", merchant:{ char:19, name:"Salvager Quill" },
     yield:{ crystal:[1,2], scrap:[1,2], coins:[4,7] }, nodes:{ crystal:3, scrap:2, seeds:1 },
-    shop:[["graft","prism",44],["graft","gillFronds",16],["item","bombs",8],["item","potions",7]], tint:"rgba(90,210,255,0.08)" },
+    shop:[["graft","prism",44],["graft","gillFronds",16],["part","piston",20],["part","rubber",12],["item","bombs",8],["item","potions",7]], tint:"rgba(90,210,255,0.08)" },
 };
 const ROOTS = { name:"The Iron Roots", icon:IC(15,13), pos:[480,560], dark:true, foes:["rootDemon","bloodHorror","rootDemon","husk"], yield:{ scrap:[1,3], coins:[4,8] }, nodes:{ scrap:3 } };
 const AREA = id => id === "roots" ? ROOTS : REGIONS[id];
@@ -41,20 +41,20 @@ const SEEDS = { trunk:101, sun:202, silt:303, glass:404, roots:505 };
 const GRAFTS = {
   gillFronds: { name:"Gill-Fronds", slot:"resp", tier:1, icon:IC(15,1), desc:"Wade through water and sap. Sap pools in fights don't slow you." },
   sporeFilter:{ name:"Spore-Filter Lung", slot:"resp", tier:1, icon:IC(15,6), desc:"Immune to Spore-Miasma stamina drain and hallucinations." },
-  photosynth: { name:"Photosynth-Skin", slot:"resp", tier:2, icon:IC(60,13), desc:"Slowly regenerate HP in sunlit regions. Solar flares heal you." },
+  photosynth: { name:"Photosynth-Skin", slot:"resp", tier:2, icon:IC(60,13), desc:"Slowly regenerate HP in sunlit regions (+1 every 6s). Solar flares heal you." },
   glider:     { name:"Glider-Membrane", slot:"resp", tier:2, icon:IC(59,13), desc:"Sun-Crown signature. +15% launch power; wind gusts can't push you." },
   prism:      { name:"Prism-Carapace", slot:"resp", tier:3, icon:IC(113,2), desc:"Reflects energy bolts and refraction beams. Active Refract: intangible for 2.5s." },
   vineWhip:   { name:"Vine-Whip Tendon", slot:"limb", tier:1, icon:IC(50,4), desc:"Active Lash: whip toward the enemy nearest your cursor at red-hot speed." },
-  thorn:      { name:"Thorn-Knuckles", slot:"limb", tier:1, icon:IC(105,8), desc:"Ricochet hits deal +2 damage." },
+  thorn:      { name:"Thorn-Knuckles", slot:"limb", tier:1, icon:IC(105,8), desc:"Ricochet hits deal +1 damage." },
   beetle:     { name:"Beetle-Shield Forearm", slot:"limb", tier:2, icon:IC(53,3), desc:"Active Brace (3s): halve damage taken and no wall cracks." },
   amber:      { name:"Amber-Heart", slot:"limb", tier:3, icon:IC(61,6), desc:"Twilight Trunk signature. Red-hot wall hits and damage taken store kinetic charge. Active Release: shockwave." },
   pheromone:  { name:"Pheromone-Gland", slot:"sense", tier:1, icon:IC(16,7), desc:"Active Calm: pacify the nearest natural beast. Root-Singers give 20% off." },
   ocelli:     { name:"Compound-Ocelli", slot:"sense", tier:2, icon:IC(44,14), desc:"Deeper bullet-time while aiming; 25% chance to dodge hits." },
   echoBulb:   { name:"Echo-Bulb", slot:"sense", tier:2, icon:IC(59,2), desc:"Silt-Floor signature. Sonar pierces darkness and extends your trajectory preview." },
   storm:      { name:"Storm-Pinion", slot:"resp", tier:3, icon:IC(49,1), mythic:true, desc:"Mythic. +30% launch power, immune to wind and flares." },
-  resinTitan: { name:"Resin-Titan Heart", slot:"limb", tier:3, icon:IC(47,5), mythic:true, desc:"Mythic. +4 damage, +6 max HP, never cracks, sap-immune." },
+  resinTitan: { name:"Resin-Titan Heart", slot:"limb", tier:3, icon:IC(47,5), mythic:true, desc:"Mythic. +2 damage, +2 max HP, never cracks, sap-immune." },
   mycelCrown: { name:"Mycel-Crown", slot:"sense", tier:3, icon:IC(65,12), mythic:true, desc:"Mythic. Miasma-immune; your spores sting nearby enemies every second." },
-  sunlens:    { name:"Sunlens-Eye", slot:"sense", tier:3, icon:IC(132,13), mythic:true, desc:"Mythic. Active Focus Beam toward your cursor: 7 energy damage to everything on the line." },
+  sunlens:    { name:"Sunlens-Eye", slot:"sense", tier:3, icon:IC(132,13), mythic:true, desc:"Mythic. Active Focus Beam toward your cursor: 1 + 2×SP energy damage to everything on the line." },
 };
 const SLOT_NAMES = { resp:"Respiratory", limb:"Limbs", sense:"Sensory" };
 const SYMB_CAP = 8;
@@ -62,7 +62,7 @@ const MYTHIC = { sun:"storm", trunk:"resinTitan", silt:"mycelCrown", glass:"sunl
 const BREED = [["sporeFilter",{ spores:3, seeds:1 }],["gillFronds",{ seeds:2, crystal:1 }],["thorn",{ seeds:2, sap:2 }],["vineWhip",{ seeds:3 }],["photosynth",{ rareSeeds:2, sap:2 }],["echoBulb",{ spores:4, crystal:2 }],["ocelli",{ crystal:3, spores:2 }]];
 const COMPANIONS = {
   kaelen:{ name:"Kaelen", char:CHAR.kaelen, role:"Ex-Industrialist Sap-Harvester", blurb:"Pressurized steam-lance and mechanical exosuit. Skeptical of the forest.",
-    perks:["In fights: fires a steam-lance bolt every 4s (5 fire dmg)","Harvesting scrap/sap yields +1 scrap","Refinery recipes cost 1 less sap"] },
+    perks:["In fights: fires a steam-lance bolt every 4s (fire damage grows with his level)","Harvesting scrap/sap yields +1 scrap","Refinery recipes cost 1 less sap"] },
   sylva:{ name:"Sylva", char:CHAR.sylva, role:"Mycelial Oracle", blurb:"Blindfolded mystic who sees through nearby fungal spores.",
     perks:["In fights: spore darts slow enemies; hazard warnings last longer & hazards hurt half","Pulse map shows tomorrow's drift","Clearing waste restores +3 extra balance"] },
   bram:{ name:"Bram & Pip", char:CHAR.bram, role:"Scavenger Duo", blurb:"A heavy-set tinkerer and his trained messenger-moth.",

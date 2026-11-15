@@ -8,9 +8,10 @@ function showTitle() {
     <div class="row" style="justify-content:center;margin:18px 0">
       <button class="pri" onclick="beginGame(true)">Begin a new season</button>
       ${s && !s.over ? `<button onclick="beginGame(false)">Continue (Day ${s.day})</button>` : ""}
+      <button onclick="openPanel(settingsPanel)">⚙ Settings</button>
     </div>
     <div class="box" style="text-align:left;padding:12px 14px;font-size:14px">
-      <b style="color:#f0b440">Explore</b> — <kbd>WASD</kbd> walk, <kbd>Shift</kbd> run, <kbd>E</kbd> talk / harvest / open, <kbd>I</kbd> grafts &amp; bag, <kbd>M</kbd> Pulse map, <kbd>F</kbd> fullscreen. Walk off a map edge to travel (takes half a day).<br>
+      <b style="color:#f0b440">Explore</b> — <kbd>WASD</kbd> walk, <kbd>Shift</kbd> run, <kbd>E</kbd> talk / harvest / open, <kbd>Q</kbd> quests, <kbd>I</kbd> grafts &amp; bag, <kbd>M</kbd> Pulse map, <kbd>O</kbd> settings. Walk off a map edge to travel (takes half a day).<br>
       <b style="color:#f0b440">Fight</b> — touch a monster to enter an encounter box. <b>Drag back and release</b> to slingshot yourself into enemies. Faster = harder hits.
       <kbd>Space</kbd> right as you hit a wall = <b>Parry</b>. <kbd>Shift</kbd> dash, <kbd>1</kbd>–<kbd>5</kbd> graft abilities, <kbd>H</kbd> tonic, <kbd>B</kbd> bomb, hold <kbd>Esc</kbd> to flee.
     </div>
@@ -19,6 +20,7 @@ function showTitle() {
 }
 function beginGame(fresh) {
   if (fresh) newGame(); else { G = loadSave(); if (!G) newGame(); }
+  ensureArms(); ensureProgress();
   for (const k in WORLDS) delete WORLDS[k];
   document.getElementById("title").classList.add("hidden");
   enterRegion(G.loc);

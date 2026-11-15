@@ -1,35 +1,49 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Great Wilt</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<div id="err"></div>
-<div id="stage"><canvas id="game"></canvas></div>
-<button id="fs-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen (F)">⛶ Fullscreen</button>
-<div id="hud" class="hidden"><div class="box" id="hudL"></div><div class="box res" id="hudR"></div></div>
-<div id="prompt" class="box hidden"></div>
-<div id="keys" class="hidden"></div>
-<div id="toast"></div>
-<div id="dialog" class="box hidden"></div>
-<div id="panel" class="hidden"><div class="box pbox" id="pbox"></div></div>
-<div id="title"></div>
 
-<script src="js/sprites.js"></script>
-<script src="js/data.js"></script>
-<script src="js/state.js"></script>
-<script src="js/input.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/world-gen.js"></script>
-<script src="js/world.js"></script>
-<script src="js/encounter.js"></script>
-<script src="js/panels.js"></script>
-<script src="js/title.js"></script>
-<script src="js/main.js"></script>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Great Wilt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div id="err"></div>
+  <div id="stage"><canvas id="game"></canvas></div>
+  <div id="top-bar">
+    <button id="quest-btn" class="top-btn" onclick="openPanel(questsPanel)" title="Quests &amp; Objectives (Q)">📜 Quests</button>
+    <button id="inv-btn" class="top-btn" onclick="openPanel(invPanel)" title="Grafts &amp; Pack (I)">🎒 Pack</button>
+    <button id="map-btn" class="top-btn" onclick="openPanel(pulsePanel)" title="The Pulse (M)">🗺 Pulse</button>
+  </div>
+  <button id="settings-btn" onclick="openPanel(settingsPanel)" title="Settings &amp; Controls (O)">⚙ Settings</button>
+  <div id="hud" class="hidden">
+    <div class="box" id="hudL"></div>
+    <div class="box res" id="hudR"></div>
+  </div>
+  <div id="prompt" class="box hidden"></div>
+  <div id="keys" class="hidden"></div>
+  <div id="toast"></div>
+  <div id="dialog" class="box hidden"></div>
+  <div id="panel" class="hidden">
+    <div class="box pbox" id="pbox"></div>
+  </div>
+  <div id="title"></div>
+  <script src="js/sprites.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/world-gen.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/encounter.js"></script>
+  <script src="js/weapons.js"></script>
+  <script src="js/progression.js"></script>
+  <script src="js/panels.js"></script>
+  <script src="js/title.js"></script>
+  <script src="js/main.js"></script>
 </body>
+
 </html>

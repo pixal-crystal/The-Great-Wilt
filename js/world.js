@@ -1,13 +1,16 @@
 let mode = "title", M = null, PL = null, FOL = null, WFOES = [], WARDEN = null, trail = [], encCooldown = 0, worldT = 0, interactTarget = null;
+const cam = { x: 0, y: 0, init: false };
 const fade = { a:0, dir:0, cb:null };
 function doFade(cb) { fade.dir = 1; fade.cb = cb; }
-function getWorld(id) { if (!WORLDS[id]) WORLDS[id] = genRegion(id); return WORLDS[id]; }
+function getWorld(id) { if (!WORLDS[id]) { WORLDS[id] = genRegion(id); applyCuts(WORLDS[id], id); } return WORLDS[id]; }
 function enterRegion(id, from) {
   M = getWorld(id); G.loc = id;
+  setTimeout(() => discover(id), 600);
   let sx = M.camp.x, sy = M.camp.y + 44;
   if (id === "roots") { sx = 28 * TL + 8; sy = 4 * TL; }
   if (from) { const e = M.exits.find(e => e.to === from); if (e) { sx = e.spawnX; sy = e.spawnY; } }
   PL = { x:sx, y:sy, dir:0, t:0, moving:false }; FOL = { x:sx, y:sy - 2, dir:0, t:0 }; trail = [];
+  cam.init = false;
   spawnFoes(); spawnWarden();
   mode = "world"; encCooldown = 1; save(); renderHud();
 }
@@ -37,11 +40,26 @@ function solidAt(px, py) {
   return true;
 }
 const feetBlocked = (x, y) => solidAt(x - 4, y - 3) || solidAt(x + 4, y - 3) || solidAt(x - 4, y) || solidAt(x + 4, y);
+function tryMoveAxis(o, delta, isX) {
+  if (!delta) return false;
+  if (!feetBlocked(isX ? o.x + delta : o.x, isX ? o.y : o.y + delta)) {
+    if (isX) o.x += delta; else o.y += delta;
+    return true;
+  }
+  let d = delta * 0.5, stepped = false;
+  for (let i = 0; i < 3; i++) {
+    if (!feetBlocked(isX ? o.x + d : o.x, isX ? o.y : o.y + d)) {
+      if (isX) o.x += d; else o.y += d;
+      stepped = true;
+    }
+    d *= 0.5;
+  }
+  return stepped;
+}
 function tryMove(o, dx, dy) {
-  let moved = false;
-  if (dx && !feetBlocked(o.x + dx, o.y)) { o.x += dx; moved = true; }
-  if (dy && !feetBlocked(o.x, o.y + dy)) { o.y += dy; moved = true; }
-  return moved;
+  const mx = tryMoveAxis(o, dx, true);
+  const my = tryMoveAxis(o, dy, false);
+  return mx || my;
 }
 const nodeUsed = n => n.type === "chest" ? !!G.opened[G.loc + n.id] : n.type === "bunker" ? !!(G.regions[G.loc] && G.regions[G.loc].bunker) : n.type === "core" ? false : G.used[G.loc + n.id] === G.day;
 const NODE_INFO = {
@@ -57,17 +75,18 @@ const NODE_INFO = {
 };
 function updateWorld(dt) {
   worldT += dt;
-  let mx = (keys["d"] || keys["arrowright"] ? 1 : 0) - (keys["a"] || keys["arrowleft"] ? 1 : 0);
-  let my = (keys["s"] || keys["arrowdown"] ? 1 : 0) - (keys["w"] || keys["arrowup"] ? 1 : 0);
+  updateFlowers(dt);
+  let mx = (isActionDown("right") || keys["d"] || keys["arrowright"] ? 1 : 0) - (isActionDown("left") || keys["a"] || keys["arrowleft"] ? 1 : 0);
+  let my = (isActionDown("down") || keys["s"] || keys["arrowdown"] ? 1 : 0) - (isActionDown("up") || keys["w"] || keys["arrowup"] ? 1 : 0);
   PL.moving = false;
   if (mx || my) {
     const l = Math.hypot(mx, my); mx /= l; my /= l;
-    let spd = keys["shift"] ? 104 : 68;
+    let spd = (isActionDown("run") || keys["shift"]) ? 104 : 68;
     const tt = M.T[Math.floor(PL.y / TL) * MW + Math.floor(PL.x / TL)];
     if (tt === T_WATER || tt === T_SAP) spd *= 0.5;
     PL.dir = Math.abs(mx) > Math.abs(my) ? (mx < 0 ? 1 : 2) : (my < 0 ? 3 : 0);
     PL.moving = tryMove(PL, mx * spd * dt, my * spd * dt);
-    PL.t += dt * (keys["shift"] ? 1.5 : 1);
+    PL.t += dt * ((isActionDown("run") || keys["shift"]) ? 1.5 : 1);
     if (PL.moving) { trail.push({ x:PL.x, y:PL.y, dir:PL.dir }); if (trail.length > 80) trail.shift(); }
   }
   const tgt = trail[trail.length - 14];
@@ -85,7 +104,7 @@ function updateWorld(dt) {
     if (f.stun > 0) { f.stun -= dt; f.moving = false; continue; }
     const F = FOES[f.type], d = Math.hypot(PL.x - f.x, PL.y - f.y) || 1;
     let vx = 0, vy = 0;
-    if (d < 90 && !safe && encCooldown <= 0) { vx = (PL.x - f.x) / d; vy = (PL.y - f.y) / d; f.moving = tryMove(f, vx * F.speed * 0.95 * dt, vy * F.speed * 0.95 * dt); f.chasing = true; }
+    if (d < foeNoticeRange(F) && !safe && encCooldown <= 0) { vx = (PL.x - f.x) / d; vy = (PL.y - f.y) / d; f.moving = tryMove(f, vx * F.speed * 0.95 * dt, vy * F.speed * 0.95 * dt); f.chasing = true; }
     else {
       f.chasing = false;
       if (f.wait > 0) { f.wait -= dt; f.moving = false; }
@@ -98,13 +117,26 @@ function updateWorld(dt) {
   }
   interactTarget = findInteract();
   const pr = document.getElementById("prompt");
-  if (interactTarget) { pr.classList.remove("hidden"); pr.innerHTML = `<kbd>E</kbd> ${interactTarget.label}`; } else pr.classList.add("hidden");
-  if (interactTarget && (pressed["e"] || pressed[" "] || pressed["enter"])) { pr.classList.add("hidden"); interactTarget.fn(); }
+  if (interactTarget) { pr.classList.remove("hidden"); pr.innerHTML = `<kbd>${keyLabel((BINDINGS.interact && BINDINGS.interact[0]) || "e")}</kbd> ${interactTarget.label}`; } else pr.classList.add("hidden");
+  if (interactTarget && (consumeAction("interact") || pressed["e"] || pressed[" "] || pressed["enter"])) { pr.classList.add("hidden"); interactTarget.fn(); }
+
+  const targetCamX = clamp(PL.x - VW / 2, 0, MW * TL - VW);
+  const targetCamY = clamp(PL.y - 10 - VH / 2, 0, MH * TL - VH);
+  if (!cam.init) {
+    cam.x = targetCamX; cam.y = targetCamY; cam.init = true;
+  } else {
+    const factor = Math.min(1, dt * 14);
+    cam.x += (targetCamX - cam.x) * factor;
+    cam.y += (targetCamY - cam.y) * factor;
+    if (Math.abs(targetCamX - cam.x) < 0.05) cam.x = targetCamX;
+    if (Math.abs(targetCamY - cam.y) < 0.05) cam.y = targetCamY;
+  }
 }
 function findInteract() {
   const cands = [];
   if (G.loc !== "roots") cands.push({ x:M.camp.x, y:M.camp.y + 2, r:46, label:"Strider-Caravan camp", fn:campDialog });
   for (const n of M.npcs) cands.push({ x:n.x, y:n.y, r:22, label:`Talk to ${n.name}`, fn:() => npcDialog(n) });
+  for (const c of pruneCandidates()) cands.push(c);
   for (const n of M.nodes) if (!nodeUsed(n) || n.type === "bunker") cands.push({ x:n.x, y:n.y, r:20, label:NODE_INFO[n.type].label, fn:() => nodeInteract(n) });
   if (WARDEN) cands.push({ x:WARDEN.x, y:WARDEN.y, r:40, label:`Approach the ${FOES[WARDEN.type].name}`, fn:wardenDialog });
   let best = null, bd = 1e9;
@@ -131,26 +163,26 @@ function nodeInteract(n) {
     if (G.companion === "kaelen" && (n.type === "scrap" || n.type === "sap")) got += " " + gain({ scrap:1 });
     if (G.companion === "bram" && n.type === "scrap") got += " " + gain({ scrap:1 });
     if (n.type === "seeds" && Math.random() < 0.25) got += " " + gain({ rareSeeds:1 });
-    G.used[id + n.id] = G.day; changeBal(id, -4); advancePhase(1);
+    G.used[id + n.id] = G.day; changeBal(id, -4); advancePhase(1); gainXP(1, "Extraction contract", "squad");
     toast(`${info.label}: ${got || "nothing"}${R ? ` <span style="color:#e8cf4a">(−4 balance)</span>` : ""}`); log(`Harvested ${n.type}.`); return save();
   }
   if (n.type === "waste") {
     const amt = 6 + (G.companion === "sylva" ? 3 : 0);
     return say(["Rusted pre-collapse machinery leaks into the soil here.", `Clear it? (+${amt} balance, +1 scrap, takes time)`], { icon:ICON.clear, name:"Industrial waste",
-      options:[{ label:"Clear it", fn:() => { G.used[id + n.id] = G.day; changeBal(id, amt); const got = gain({ scrap:1 }); advancePhase(1); toast(`Waste cleared: +${amt} balance ${got}`, "#9ad04a"); log("Cleared waste."); save(); } }, { label:"Leave it" }] });
+      options:[{ label:"Clear it", fn:() => { G.used[id + n.id] = G.day; changeBal(id, amt); const got = gain({ scrap:1 }); advancePhase(1); toast(`Waste cleared: +${amt} balance ${got}`, "#9ad04a"); log("Cleared waste."); gainXP(3, "Purified a blighted grove", "squad"); save(); } }, { label:"Leave it" }] });
   }
   if (n.type === "chest") {
     G.opened[id + n.id] = true;
     const got = gain({ rareSeeds:1, coins:[6,12], sap:[0,2], potions:Math.random() < 0.4 ? 1 : 0 });
-    toast(`Cache: ${got}`, "#ffd27a"); return save();
+    toast(`Cache: ${got}`, "#ffd27a"); gainXP(2, "Found a hidden cache"); return save();
   }
   if (n.type === "bunker") {
     if (G.regions[id].bunker) return say(["The bunker is empty now. Only humming walls remain."]);
     if (G.companion !== "bram") return say(["A sealed pre-collapse bunker door, crusted with moss.", "Bram & Pip could probably crack this open."], { icon:ICON.lock, name:"Sealed bunker" });
     const key = id + "Bunker";
-    G.regions[id].bunker = true; G.echoes.push(key); const got = gain({ scrap:3, crystal:1, coins:10 }); advancePhase(1);
-    log("Opened a bunker: Root Echo."); save();
-    return say(["Bram wedges his wrench into the seal while Pip flutters through a vent...", "Click. Hiss. The door groans open.", ECHOES[key], `Root Echo recovered (${G.echoes.length}/3).`], { char:CHAR.bram, name:"Bram & Pip", onClose:() => toast(`Bunker loot: ${got}`) });
+    gainXP(8, "Breached a pre-collapse ruin"); G.regions[id].bunker = true; G.echoes.push(key); const got = gain({ scrap:3, crystal:1, coins:10 }); advancePhase(1);
+    log("Opened a bunker: Root Echo."); const relicLine = grantRelic("pruner"); save();
+    return say(["Bram wedges his wrench into the seal while Pip flutters through a vent...", "Click. Hiss. The door groans open.", ECHOES[key], `Root Echo recovered (${G.echoes.length}/3).`, ...(relicLine ? ["Racked on the bunker wall: a terraforming engineer's chainsaw-greatsword.", relicLine] : [])], { char:CHAR.bram, name:"Bram & Pip", onClose:() => toast(`Bunker loot: ${got}`) });
   }
   if (n.type === "core") return coreDialog();
 }
@@ -177,7 +209,7 @@ function forestRumor(id) {
 function campDialog() {
   say(["The Strider-Caravan kneels by the campfire, chewing leaves."], { icon:IC(1,8), name:"Strider-Caravan",
     options:[{ label:"Rest until dawn (heal)", fn:() => doFade(() => { G.phase = 0; advanceDay(); if (G.over) return showCollapse(); G.hp = maxHp(); log("Rested at camp."); spawnFoes(); spawnWarden(); toast(`Day ${G.day}. You wake rested.`, "#9ad04a"); save(); }) },
-      { label:"Caravan (companions, upgrades, crafting)", fn:() => openPanel(campPanel) }, { label:"Leave" }] });
+      { label:"Caravan (companions, upgrades, crafting)", fn:() => openPanel(campPanel) }, { label:"Workbench & Armory (swords)", fn:() => openPanel(armoryPanel) }, { label:"Leave" }] });
 }
 function wardenDialog() {
   const W = FOES[WARDEN.type];
@@ -191,9 +223,10 @@ function wardenDialog() {
 }
 function ritual(cost) {
   const id = G.loc, r = G.regions[id];
-  pay(cost); r.bal = 75; r.warden = false; G.stats.rituals++; WARDEN = null; advancePhase(1);
+  pay(cost); r.bal = 75; r.warden = false; G.stats.rituals++; WARDEN = null; advancePhase(1); gainXP(12, "Restoration Ritual", "squad");
   const lines = ["You plant the rare seeds in cleared soil and hum the old Root-Singer canticle...", "The Warden sinks into the earth, and the forest exhales."];
   if (!r.echo) { r.echo = true; G.echoes.push(id); lines.push("The neural-root hums a memory into you:", ECHOES[id]); log("Root Echo received."); }
+  const fangLine = grantRelic("fang"); if (fangLine) lines.push("From the sleeping Warden's roots, a living wooden blade unfurls toward your hand.", fangLine);
   log("Restoration Ritual performed."); save();
   say(lines, { char:CHAR.player, name:"Restoration Ritual" });
 }
@@ -209,9 +242,10 @@ function coreDialog() {
 
 /* ---------- world drawing ---------- */
 function drawWorld() {
-  const camX = clamp(Math.round(PL.x - VW / 2), 0, MW * TL - VW), camY = clamp(Math.round(PL.y - 10 - VH / 2), 0, MH * TL - VH);
+  const camX = clamp(Math.round(cam.x), 0, MW * TL - VW), camY = clamp(Math.round(cam.y), 0, MH * TL - VH);
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, VW, VH);
   ctx.drawImage(M.bg, camX, camY, VW, VH, 0, 0, VW, VH);
+  drawFlowers(camX, camY);
   const t = worldT, list = [];
   const vis = (x, y) => x > camX - 60 && x < camX + VW + 60 && y > camY - 10 && y < camY + VH + 80;
   for (const o of M.objs) if (vis(o.x, o.y)) list.push({ y:o.y, d:() => { const r = TS16[o.key]; t16(ctx, o.key, o.x - camX - r[2] / 2, o.y - camY - r[3] + 1); } });
@@ -224,7 +258,8 @@ function drawWorld() {
     list.push({ y:f.y, d:() => { const F = FOES[f.type]; const sc = F.spr[0] === "big" ? 0.75 : 1;
       ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(f.x - camX, f.y - camY, 6, 2, 0, 0, 7); ctx.fill();
       drawFoeSprite(ctx, F.spr, f.moving ? "walk" : "idle", f.t, f.dir, f.x - camX, f.y - camY - (F.flying ? 3 + Math.sin(t * 4 + f.x) * 2 : 0), sc, f.stun > 0 ? 0.5 : 1);
-      if (f.chasing) outlineText(ctx, "!", f.x - camX, f.y - camY - 18, "#ff5a5a", "bold 9px 'Pixelify Sans'"); } });
+      if (f.chasing) outlineText(ctx, "!", f.x - camX, f.y - camY - 18, "#ff5a5a", "bold 9px 'Pixelify Sans'");
+      if (Math.hypot(f.x - PL.x, f.y - PL.y) < 80) { const el = enemyLevel(G.loc), tr = enemyTier(el); outlineText(ctx, `Lv${el}`, f.x - camX, f.y - camY + 7, tr.col, "5px 'Pixelify Sans'"); } } });
   }
   if (WARDEN && vis(WARDEN.x, WARDEN.y)) list.push({ y:WARDEN.y, d:() => { const F = FOES[WARDEN.type], X = WARDEN.x - camX, Y = WARDEN.y - camY;
     const g = ctx.createRadialGradient(X, Y - 14, 2, X, Y - 14, 34); g.addColorStop(0, "rgba(255,40,40,0.4)"); g.addColorStop(1, "rgba(255,40,40,0)"); ctx.fillStyle = g; ctx.fillRect(X - 40, Y - 50, 80, 70);

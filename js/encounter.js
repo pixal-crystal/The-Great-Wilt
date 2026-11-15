@@ -6,10 +6,10 @@ const TIER_NAME = ["BLUE", "YELLOW", "RED", "WHITE-HOT"];
 const TIER_MULT = [1, 1.6, 2.4, 3];
 const STYLE = [[12,"WILT-BREAKER"],[8,"PINBALL WIZARD"],[5,"KINETIC FLURRY"],[3,"TRIPLE RICOCHET"],[2,"DOUBLE BANK"]];
 const ATTACK_SPEED = 90;
-function makeFoe(ty, x, y) {
-  const F = FOES[ty], sc = F.scale || 1, hp = Math.round(F.hp * (F.boss ? 1 : 1.6)) + Math.floor(G.day / 5) * 2;
-  return { type:ty, F, x, y, vx:0, vy:0, r:(F.spr[0] === "big" ? 7 : 6) * sc, hp, maxHp:hp, dir:1, t:Math.random(), hitCd:0, contactCd:0.8, atk:0, hurt:0, stun:0, slow:0, dying:0,
-    fireCd:1 + Math.random(), hopCd:1 + Math.random(), state:"track", stT:2 + Math.random() * 2, patT:2, patI:0, queue:[], moving:false };
+function makeFoe(ty, x, y, lvl) {
+  const F = FOES[ty], sc = F.scale || 1, hp = 1;
+  return scaleFoe({ type:ty, F, x, y, vx:0, vy:0, r:(F.spr[0] === "big" ? 7 : 6) * sc, hp, maxHp:hp, dir:1, t:Math.random(), hitCd:0, contactCd:0.8, atk:0, hurt:0, stun:0, slow:0, dying:0,
+    fireCd:1 + Math.random(), hopCd:1 + Math.random(), state:"track", stT:2 + Math.random() * 2, patT:2, patI:0, queue:[], moving:false }, lvl ?? enemyLevel(G.loc, F.boss));
 }
 function startEncounterFromWorld(wf) {
   const group = [wf, ...WFOES.filter(o => o !== wf && Math.hypot(o.x - wf.x, o.y - wf.y) < 80)].slice(0, 3);
@@ -19,10 +19,11 @@ function startEncounter(types, opts = {}) {
   DLG = null; document.getElementById("dialog").classList.add("hidden"); document.getElementById("prompt").classList.add("hidden");
   const region = G.loc;
   E = { region, t:0, rects:[], foes:[], bullets:[], fx:[], floats:[], clones:[], zones:[], sap:[], spikes:[], prisms:[], beams:[], src:opts.src || [], boss:!!opts.boss,
-    p:{ x:BOX.x + 36, y:BOX.y + BOX.h / 2, vx:0, vy:0, r:6, dir:2, cracks:0, iframes:1.0, stun:0, brace:0, invis:0, dashCd:0, t:0, trail:[] },
-    aim:null, combo:0, best:0, restT:0, parryBuf:0, wallWin:0, stamina:10, kinetic:0, compT:2.5, flee:0, killed:[], calmed:0, blightK:0, beastK:0,
+    p:{ x:BOX.x + 36, y:BOX.y + BOX.h / 2, vx:0, vy:0, r:6, dir:2, cracks:0, iframes:1.0, stun:0, brace:0, invis:0, dashCd:0, crackCd:0, t:0, trail:[] },
+    aim:null, combo:0, best:0, restT:0, parryBuf:0, wallWin:0, stamina:maxStamina(), kinetic:0, critHits:0, compT:2.5, flee:0, killed:[], calmed:0, blightK:0, beastK:0,
     wind:{ state:"idle", t:4, dx:0, dy:0 }, miasmaT:0, sunT:0, mycelT:1, shake:0, prismCd:0, over:null, overT:0, intro:1.3, flash:0.6 };
   buildArena(region);
+  swordEncInit(); if (E.fuelMsg) float(E.p.x, E.p.y - 20, E.fuelMsg, E.fueled ? "#ffb35a" : "#999");
   const n = types.length;
   types.forEach((ty, i) => E.foes.push(makeFoe(ty, BOX.x + BOX.w - 50 - (i % 2) * 34, BOX.y + 30 + (n === 1 ? BOX.h / 2 - 30 : i * (BOX.h - 60) / Math.max(1, n - 1)))));
   G.stats.fights++;
@@ -46,13 +47,17 @@ function buildArena(R) {
 const pSpeed = () => Math.hypot(E.p.vx, E.p.vy);
 const hostiles = () => E.foes.filter(f => !f.dead && !f.dying && !f.calm && !f.phantom);
 function encKey(k) {
-  if (E.over) { if (E.overT > 0.8 && ["enter"," ","e"].includes(k)) finishEncounter(); return; }
+  if (E.over) { if (E.overT > 0.8 && (["enter"," ","e"].includes(k) || isActionKey("interact", k))) finishEncounter(); return; }
   if (E.intro > 0) return;
-  if (k === " ") { if (E.wallWin > 0) { parry(); E.wallWin = 0; } else E.parryBuf = 0.13; }
-  if (k === "shift") dash();
-  if (k === "h") usePotion();
-  if (k === "b") throwBomb();
-  const L = activeList(); const n = parseInt(k, 10); if (n >= 1 && n <= L.length) useActive(L[n - 1]);
+  if (isActionKey("parry", k) || k === " ") { if (E.wallWin > 0) { parry(); E.wallWin = 0; } else E.parryBuf = swordParryWin(); }
+  if (isActionKey("run", k) || k === "shift") dash();
+  if (isActionKey("tonic", k) || k === "h") usePotion();
+  if (isActionKey("bomb", k) || k === "b") throwBomb();
+  const L = activeList();
+  if (isActionKey("act1", k) && L[0]) return useActive(L[0]);
+  if (isActionKey("act2", k) && L[1]) return useActive(L[1]);
+  if (isActionKey("act3", k) && L[2]) return useActive(L[2]);
+  const n = parseInt(k, 10); if (n >= 1 && n <= L.length) useActive(L[n - 1]);
 }
 function encPointerDown() {
   if (!E) return;
@@ -61,15 +66,15 @@ function encPointerDown() {
   if (E.p.stun > 0) return float(E.p.x, E.p.y - 16, "STUNNED", "#aaa");
   E.aim = { sx:mouse.x, sy:mouse.y };
 }
-function launchSpeed(len) { const maxL = 400 * (has("storm") ? 1.3 : has("glider") ? 1.15 : 1); return 100 + Math.min(1, len / 60) * (maxL - 100); }
+function launchSpeed(len) { const maxL = 400 * (has("storm") ? 1.3 : has("glider") ? 1.15 : 1); return (100 + Math.min(1, len / 60) * (maxL - 100)) * swordLaunchMult(); }
 function encPointerUp() {
   if (!E || !E.aim) return;
   const a = E.aim; E.aim = null;
   const dx = a.sx - mouse.x, dy = a.sy - mouse.y, len = Math.hypot(dx, dy);
   if (len < 5) return;
   const moving = pSpeed() > 60;
-  if (moving && E.stamina < 2) return float(E.p.x, E.p.y - 16, "NO STAMINA", "#5fb3ff");
-  if (moving) E.stamina -= 2;
+  if (moving && E.stamina < 1) return float(E.p.x, E.p.y - 16, "NO STAMINA", "#5fb3ff");
+  if (moving) E.stamina -= 1;
   const sp = launchSpeed(len);
   E.p.vx = dx / len * sp; E.p.vy = dy / len * sp;
   E.fx.push({ type:"ring", x:E.p.x, y:E.p.y, t:0, col:TIER_COL[tierOf(sp)] });
@@ -82,7 +87,7 @@ function launchVec() {
 function float(x, y, s, col = "#fff") { E.floats.push({ x, y, s, col, t:0 }); }
 function crack() {
   const p = E.p; p.cracks++; float(p.x, p.y - 18, "CRACK", "#9fd3ff"); E.shake = 0.15;
-  if (p.cracks >= 3) { p.cracks = 0; p.stun = 1.0; float(p.x, p.y - 26, "SHATTER!", "#ff8080"); hurtPlayer(8, { env:true, unavoidable:true }); E.fx.push({ type:"shards", x:p.x, y:p.y, t:0 }); }
+  if (p.cracks >= 3) { p.cracks = 0; p.stun = 1.0; float(p.x, p.y - 26, "SHATTER!", "#ff8080"); hurtPlayer(2, { env:true, unavoidable:true }); E.fx.push({ type:"shards", x:p.x, y:p.y, t:0 }); }
 }
 function parry() {
   const p = E.p, s = pSpeed(); if (s < 1) return;
@@ -90,12 +95,13 @@ function parry() {
   if (p.cracks > 0) p.cracks--;
   if (has("amber")) E.kinetic = Math.min(5, E.kinetic + 1);
   E.combo++; float(p.x, p.y - 20, "PARRY! KINETIC BOOST", "#ffe46a"); E.fx.push({ type:"ring", x:p.x, y:p.y, t:0, col:"#fff", big:true }); E.shake = 0.1;
+  swordOnParry();
 }
 function dash() {
-  const p = E.p; if (p.dashCd > 0 || E.stamina < 2 || p.stun > 0) return;
+  const p = E.p; if (p.dashCd > 0 || E.stamina < 1 || p.stun > 0) return;
   let dx = (keys["d"] ? 1 : 0) - (keys["a"] ? 1 : 0), dy = (keys["s"] ? 1 : 0) - (keys["w"] ? 1 : 0);
   if (!dx && !dy) { dx = mouse.x - p.x; dy = mouse.y - p.y; }
-  const l = Math.hypot(dx, dy) || 1; p.vx += dx / l * 240; p.vy += dy / l * 240; p.iframes = Math.max(p.iframes, 0.32); p.dashCd = 0.55; E.stamina -= 2;
+  const l = Math.hypot(dx, dy) || 1; p.vx += dx / l * 240; p.vy += dy / l * 240; p.iframes = Math.max(p.iframes, 0.28 + 0.01 * maxStamina()); p.dashCd = 0.55; E.stamina -= 1;
   E.fx.push({ type:"ring", x:p.x, y:p.y, t:0, col:"#9fe8f0" });
 }
 function hurtPlayer(d, o = {}) {
@@ -109,23 +115,26 @@ function hurtPlayer(d, o = {}) {
   if (has("amber")) E.kinetic = Math.min(5, E.kinetic + 1);
   G.hp = Math.max(0, G.hp - d); p.iframes = 0.8; E.combo = 0; E.shake = 0.2;
   float(p.x, p.y - 14, "-" + d, o.fire ? "#ffb35a" : "#ff6b6b");
+  if (o.fire && !o.self) swordOnFire();
   if (G.hp <= 0) endEncounter("lose");
 }
 function damageFoe(f, d, o = {}) {
   if (f.dead || f.dying) return;
   if (f.phantom) { f.dead = true; float(f.x, f.y - 10, "only spores…", "#b48be8"); return; }
+  if (o.fire && f.mutant) mutantBurst(f);
+  if (f.dead || f.dying) return;
   f.hp -= d; f.hurt = 0.25; float(f.x, f.y - 14 * (f.F.scale || 1), d > 0 ? "-" + d : "CLANK", d > 0 ? (o.col || "#fff") : "#aaa");
   if (f.hp <= 0) { f.dying = 0.7; E.killed.push(f.type); if (f.F.blight) E.blightK++; else if (!f.F.boss) E.beastK++; E.fx.push({ type:"burst", x:f.x, y:f.y, t:0 }); }
 }
-function hitDamage(spd) { return Math.max(1, Math.round(baseDmg() * TIER_MULT[tierOf(spd)] * (1 + 0.12 * Math.min(12, E.combo)))); }
+function hitDamage(spd) { return Math.max(1, baseDmg() + [0, 0, 1, 2][tierOf(spd)] + (E.combo >= 10 ? 2 : E.combo >= 5 ? 1 : 0)); }
 function activeList() {
   const L = [];
-  if (has("vineWhip")) L.push({ id:"lash", name:"Lash", icon:GRAFTS.vineWhip.icon, cost:3 });
-  if (has("beetle")) L.push({ id:"brace", name:"Brace", icon:GRAFTS.beetle.icon, cost:2 });
-  if (has("amber")) L.push({ id:"release", name:"Release", icon:GRAFTS.amber.icon, cost:3, need:() => E.kinetic > 0 });
-  if (has("prism")) L.push({ id:"refract", name:"Refract", icon:GRAFTS.prism.icon, cost:4 });
-  if (has("pheromone")) L.push({ id:"calm", name:"Calm", icon:GRAFTS.pheromone.icon, cost:3 });
-  if (has("sunlens")) L.push({ id:"focus", name:"Focus", icon:GRAFTS.sunlens.icon, cost:5 });
+  if (has("vineWhip")) L.push({ id:"lash", name:"Lash", icon:GRAFTS.vineWhip.icon, cost:2 });
+  if (has("beetle")) L.push({ id:"brace", name:"Brace", icon:GRAFTS.beetle.icon, cost:1 });
+  if (has("amber")) L.push({ id:"release", name:"Release", icon:GRAFTS.amber.icon, cost:2, need:() => E.kinetic > 0 });
+  if (has("prism")) L.push({ id:"refract", name:"Refract", icon:GRAFTS.prism.icon, cost:3 });
+  if (has("pheromone")) L.push({ id:"calm", name:"Calm", icon:GRAFTS.pheromone.icon, cost:2 });
+  if (has("sunlens")) L.push({ id:"focus", name:"Focus", icon:GRAFTS.sunlens.icon, cost:3 });
   return L.slice(0, 5);
 }
 function useActive(a) {
@@ -140,7 +149,7 @@ function useActive(a) {
   if (a.id === "brace") { p.brace = 3; float(p.x, p.y - 16, "BRACE", "#9fe8f0"); }
   if (a.id === "release") {
     const k = E.kinetic; E.kinetic = 0; E.fx.push({ type:"ring", x:p.x, y:p.y, t:0, col:"#ffb35a", big:true });
-    for (const f of hs) { const d = dist(f, p) || 1; if (d < 52) { damageFoe(f, 2 + 2 * k, { col:"#ffb35a" }); if (!f.F.boss) { f.vx += (f.x - p.x) / d * 160; f.vy += (f.y - p.y) / d * 160; } } }
+    for (const f of hs) { const d = dist(f, p) || 1; if (d < 52) { damageFoe(f, symPow() + k, { col:"#ffb35a" }); if (!f.F.boss) { f.vx += (f.x - p.x) / d * 160; f.vy += (f.y - p.y) / d * 160; } } }
     E.bullets = E.bullets.filter(b => b.friendly || Math.hypot(b.x - p.x, b.y - p.y) > 52);
   }
   if (a.id === "refract") { p.invis = 2.5; float(p.x, p.y - 16, "REFRACT", "#9fe8f0"); }
@@ -152,11 +161,11 @@ function useActive(a) {
   if (a.id === "focus") {
     const dx = mouse.x - p.x, dy = mouse.y - p.y, l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l;
     E.fx.push({ type:"beam", x:p.x, y:p.y, x2:p.x + ux * 400, y2:p.y + uy * 400, t:0 });
-    for (const f of hs) { const rx = f.x - p.x, ry = f.y - p.y, proj = rx * ux + ry * uy; if (proj > 0 && Math.abs(rx * uy - ry * ux) < f.r + 4) damageFoe(f, 7, { col:"#ffe08a" }); }
+    for (const f of hs) { const rx = f.x - p.x, ry = f.y - p.y, proj = rx * ux + ry * uy; if (proj > 0 && Math.abs(rx * uy - ry * ux) < f.r + 4) damageFoe(f, 1 + 2 * symPow(), { col:"#ffe08a" }); }
   }
   E.stamina -= a.cost;
 }
-function usePotion() { if (G.res.potions < 1 || G.hp >= maxHp()) return; G.res.potions--; G.hp = Math.min(maxHp(), G.hp + 12); float(E.p.x, E.p.y - 16, "+12", "#7dff7a"); }
+function usePotion() { if (G.res.potions < 1 || G.hp >= maxHp()) return; G.res.potions--; G.hp = Math.min(maxHp(), G.hp + 4); float(E.p.x, E.p.y - 16, "+4", "#7dff7a"); }
 function throwBomb() { if (G.res.bombs < 1) return; G.res.bombs--; E.zones.push({ x:clamp(mouse.x, BOX.x, BOX.x + BOX.w), y:clamp(mouse.y, BOX.y, BOX.y + BOX.h), r:26, t:0.45, bomb:true }); }
 function collideRect(o, r, R) {
   const px = clamp(o.x, R.x, R.x + R.w), py = clamp(o.y, R.y, R.y + R.h);
@@ -176,23 +185,25 @@ function updateEncounter(rdt) {
   const ts = E.aim ? (has("ocelli") ? 0.08 : 0.2) : 1, dt = rdt * ts, p = E.p, R = E.region;
   E.t += dt; p.t += dt;
   E.parryBuf = Math.max(0, E.parryBuf - rdt); E.wallWin = Math.max(0, E.wallWin - rdt); E.shake = Math.max(0, E.shake - rdt);
-  for (const k of ["iframes","stun","brace","invis","dashCd"]) p[k] = Math.max(0, p[k] - dt);
+  for (const k of ["iframes","stun","brace","invis","dashCd","crackCd"]) p[k] = Math.max(0, (p[k] || 0) - dt);
   E.prismCd = Math.max(0, E.prismCd - dt);
-  E.stamina = Math.min(10, E.stamina + dt * 1.3);
+  E.stamina = Math.min(maxStamina(), E.stamina + dt * staminaRegen());
+  swordTick(dt);
   if (keys["escape"] && !E.boss) { E.flee += rdt; if (E.flee > 1) return endEncounter("flee"); } else E.flee = 0;
   let sp = pSpeed(), walking = false;
   if (sp < 60 && !E.aim && p.stun <= 0) {
-    const ix = (keys["d"] || keys["arrowright"] ? 1 : 0) - (keys["a"] || keys["arrowleft"] ? 1 : 0), iy = (keys["s"] || keys["arrowdown"] ? 1 : 0) - (keys["w"] || keys["arrowup"] ? 1 : 0);
+    const ix = (isActionDown("right") || keys["d"] || keys["arrowright"] ? 1 : 0) - (isActionDown("left") || keys["a"] || keys["arrowleft"] ? 1 : 0), iy = (isActionDown("down") || keys["s"] || keys["arrowdown"] ? 1 : 0) - (isActionDown("up") || keys["w"] || keys["arrowup"] ? 1 : 0);
     if (ix || iy) { const l = Math.hypot(ix, iy); p.vx = ix / l * 48; p.vy = iy / l * 48; walking = true; }
     else if (sp < 50) { p.vx *= Math.exp(-8 * dt); p.vy *= Math.exp(-8 * dt); }
   }
+  p.walking = walking;
   if (R === "sun") {
     const w = E.wind; w.t -= dt;
     if (w.t <= 0) { if (w.state === "idle") { w.state = "warn"; w.t = G.companion === "sylva" ? 1.5 : 1; const a = pick([0, Math.PI / 2, Math.PI, -Math.PI / 2]); w.dx = Math.cos(a); w.dy = Math.sin(a); }
       else if (w.state === "warn") { w.state = "gust"; w.t = 1.6; } else { w.state = "idle"; w.t = 4 + Math.random() * 2; } }
     if (w.state === "gust") { if (!has("glider") && !has("storm")) { p.vx += w.dx * 240 * dt; p.vy += w.dy * 240 * dt; } for (const f of E.foes) if (!f.F.flying && !f.F.boss) { f.vx += w.dx * 120 * dt; f.vy += w.dy * 120 * dt; } }
   }
-  if ((R === "sun" || R === "glass") && has("photosynth")) { E.sunT += dt; if (E.sunT > 2) { E.sunT = 0; G.hp = Math.min(maxHp(), G.hp + 1); } }
+  if ((R === "sun" || R === "glass") && has("photosynth")) { E.sunT += dt; if (E.sunT > 6) { E.sunT = 0; G.hp = Math.min(maxHp(), G.hp + 1); } }
   const inSap = E.sap.some(s => Math.hypot(p.x - s.x, p.y - s.y) < s.r);
   const k = inSap && !has("gillFronds") && !has("resinTitan") ? 4 : walking ? 0 : 0.55;
   p.vx *= Math.exp(-k * dt); p.vy *= Math.exp(-k * dt);
@@ -205,55 +216,55 @@ function updateEncounter(rdt) {
     for (const Rc of E.rects) { if (Rc.dead) continue; const n = collideRect(p, p.r, Rc); if (n) wallHit(Rc, n[0], n[1]); }
     for (const f of E.foes) {
       if (f.dead || f.dying || f.calm) continue;
-      const d = dist(p, f); if (d >= p.r + f.r) continue;
+      const d = dist(p, f); if (d >= p.r + f.r + (pSpeed() >= ATTACK_SPEED && !walking ? swordReach(pSpeed()) : 0)) continue;
       const nx = (p.x - f.x) / (d || 1), ny = (p.y - f.y) / (d || 1), spd = pSpeed();
-      p.x = f.x + nx * (p.r + f.r + 0.5); p.y = f.y + ny * (p.r + f.r + 0.5);
+      const rr = Math.max(d, p.r + f.r + 0.5); p.x = f.x + nx * rr; p.y = f.y + ny * rr;
       if (f.phantom) { damageFoe(f, 1); continue; }
       if (spd >= ATTACK_SPEED && !walking) {
         if (f.hitCd <= 0) {
-          let dmg = hitDamage(spd); if (f.F.armored && spd < 170) dmg = 0;
-          damageFoe(f, dmg, { col:TIER_COL[tierOf(spd)] }); f.hitCd = 0.22; E.combo++;
-          if (!f.F.boss) { f.vx -= nx * spd * 0.45; f.vy -= ny * spd * 0.45; }
+          swordStrike(f, spd); f.hitCd = 0.22; E.combo++;
+          if (!f.F.boss) { const kb = 0.45 * (sword().knock || 1); f.vx -= nx * spd * kb; f.vy -= ny * spd * kb; }
           E.fx.push({ type:"spark", x:(p.x + f.x) / 2, y:(p.y + f.y) / 2, t:0, col:TIER_COL[tierOf(spd)] });
         }
         const vn = p.vx * nx + p.vy * ny; if (vn < 0) { p.vx -= 2 * vn * nx; p.vy -= 2 * vn * ny; } p.vx *= 0.92; p.vy *= 0.92;
-      } else if (f.contactCd <= 0 && f.stun <= 0) { hurtPlayer(f.F.dmg, { fire:f.F.fire }); f.contactCd = 1.0; f.atk = 0.3; }
+      } else if (f.contactCd <= 0 && f.stun <= 0) { hurtPlayer(f.dmg, { fire:f.F.fire }); f.contactCd = 1.0; f.atk = 0.3; }
       if (E.over) return;
     }
+    if (pSpeed() >= ATTACK_SPEED && !walking) for (const f of E.foes) if (f.part && !f.dead && !f.dying) hitBossPart(f, pSpeed());
     for (const pr of E.prisms) if (E.prismCd <= 0 && pSpeed() >= 170 && Math.hypot(p.x - pr.x, p.y - pr.y) < p.r + pr.r) {
       E.prismCd = 1.2; const a = Math.atan2(p.vy, p.vx), s2 = pSpeed() * 1.1;
       E.clones.push({ x:p.x, y:p.y, vx:Math.cos(a + 0.55) * s2, vy:Math.sin(a + 0.55) * s2, life:3, hit:new Map() });
-      p.vx = Math.cos(a - 0.3) * s2; p.vy = Math.sin(a - 0.3) * s2; float(pr.x, pr.y - 10, "SPLIT!", "#9fe8f0");
+      p.vx = Math.cos(a - 0.3) * s2; p.vy = Math.sin(a - 0.3) * s2; float(pr.x, pr.y - 10, "SPLIT!", "#9fe8f0"); triggerPrism("PRISM");
     }
   }
   if (sp > 20) p.dir = Math.abs(p.vx) > Math.abs(p.vy) ? (p.vx < 0 ? 1 : 2) : (p.vy < 0 ? 3 : 0);
   p.trail.push({ x:p.x, y:p.y, c:TIER_COL[tierOf(sp)] }); if (p.trail.length > 18) p.trail.shift();
-  for (const sk of E.spikes) if (p.x > sk.x - 4 && p.x < sk.x + sk.w + 4 && p.y > sk.y - 4 && p.y < sk.y + sk.h + 4 && p.iframes <= 0) { hurtPlayer(4, { env:true }); if (!E.over) crack(); }
+  for (const sk of E.spikes) if (p.x > sk.x - 4 && p.x < sk.x + sk.w + 4 && p.y > sk.y - 4 && p.y < sk.y + sk.h + 4 && p.iframes <= 0) { hurtPlayer(1, { env:true }); if (!E.over) crack(); }
   if (E.over) return;
   for (const bm of E.beams) {
     bm.t -= dt;
     if (bm.t <= 0) { if (bm.state === "off") { bm.state = "warn"; bm.t = G.companion === "sylva" ? 1.5 : 1; } else if (bm.state === "warn") { bm.state = "on"; bm.t = 0.5; bm.hit = new Set(); } else { bm.state = "off"; bm.t = 2 + Math.random() * 2.5; if (bm.temp) bm.dead = true; } }
     if (bm.state === "on") {
       const onLine = o => bm.axis === "h" ? Math.abs(o.y - bm.pos) < 5 : Math.abs(o.x - bm.pos) < 5;
-      if (onLine(p) && !bm.hit.has("p") && p.invis <= 0) { bm.hit.add("p"); if (has("prism")) float(p.x, p.y - 16, "REFLECT", "#9fe8f0"); else { hurtPlayer(6, { energy:true, env:true }); if (!E.over) crack(); } }
-      for (const f of hostiles()) if (onLine(f) && !bm.hit.has(f)) { bm.hit.add(f); damageFoe(f, 4, { col:"#ffb35a" }); }
+      if (onLine(p) && !bm.hit.has("p") && p.invis <= 0) { bm.hit.add("p"); if (has("prism")) float(p.x, p.y - 16, "REFLECT", "#9fe8f0"); else { hurtPlayer(2, { energy:true, env:true }); if (!E.over) crack(); } }
+      for (const f of hostiles()) if (onLine(f) && !bm.hit.has(f)) { bm.hit.add(f); damageFoe(f, 2, { col:"#ffb35a" }); }
     }
   }
   if (E.over) return;
   E.beams = E.beams.filter(b => !b.dead);
   if (R === "silt" && !has("sporeFilter") && !has("mycelCrown")) {
-    E.stamina = Math.max(0, E.stamina - dt * 1.9);
+    E.stamina = Math.max(0, E.stamina - dt * 1.0);
     if (E.stamina <= 0.05) { E.miasmaT += dt; if (E.miasmaT > 2) { E.miasmaT = 0; hurtPlayer(1, { env:true, unavoidable:true });
       if (!E.over && E.foes.filter(f => f.phantom && !f.dead).length < 2) { const ph = makeFoe("siltShade", BOX.x + 40 + Math.random() * (BOX.w - 80), BOX.y + 20 + Math.random() * (BOX.h - 40)); ph.phantom = true; ph.hp = ph.maxHp = 1; ph.F = { ...FOES.siltShade, name:"???" }; E.foes.push(ph); float(p.x, p.y - 20, "the mist moves…", "#b48be8"); } } }
   }
   if (E.over) return;
-  if (has("mycelCrown")) { E.mycelT -= dt; if (E.mycelT <= 0) { E.mycelT = 1; for (const f of hostiles()) if (dist(f, p) < 34) damageFoe(f, 2, { col:"#c9a8ff" }); } }
+  if (has("mycelCrown")) { E.mycelT -= dt; if (E.mycelT <= 0) { E.mycelT = 1; for (const f of hostiles()) if (dist(f, p) < 34) damageFoe(f, symPow(), { col:"#c9a8ff" }); } }
   for (const z of E.zones) {
     z.t -= dt;
     if (z.t <= 0 && !z.done) { z.done = true; E.fx.push({ type:"boom", x:z.x, y:z.y, t:0, r:z.r });
-      if (z.bomb) { for (const f of hostiles()) if (Math.hypot(f.x - z.x, f.y - z.y) < z.r + f.r) damageFoe(f, 6 + (E.sap.some(s => Math.hypot(f.x - s.x, f.y - s.y) < s.r) ? 4 : 0), { col:"#ffb35a" });
+      if (z.bomb) { for (const f of hostiles()) if (Math.hypot(f.x - z.x, f.y - z.y) < z.r + f.r) damageFoe(f, 2 + symPow() + (E.sap.some(s => Math.hypot(f.x - s.x, f.y - s.y) < s.r) ? 2 : 0), { col:"#ffb35a", fire:true });
         for (const Rc of E.rects) if (Rc.type === "cracked" && !Rc.dead && Math.hypot(Rc.x + Rc.w / 2 - z.x, Rc.y + Rc.h / 2 - z.y) < z.r + 20) { Rc.dead = true; float(Rc.x, Rc.y, "CRUMBLE", "#ccc"); } }
-      else if (Math.hypot(p.x - z.x, p.y - z.y) < z.r) { if (has("photosynth") || has("storm")) { G.hp = Math.min(maxHp(), G.hp + 3); float(p.x, p.y - 16, "+3 sunlight", "#7dff7a"); } else hurtPlayer(z.dmg, { fire:true, env:true }); } }
+      else if (Math.hypot(p.x - z.x, p.y - z.y) < z.r) { if (has("photosynth") || has("storm")) { G.hp = Math.min(maxHp(), G.hp + 1); float(p.x, p.y - 16, "+1 sunlight", "#7dff7a"); } else hurtPlayer(z.dmg, { fire:true, env:true }); } }
   }
   if (E.over) return;
   E.zones = E.zones.filter(z => !z.done);
@@ -266,7 +277,7 @@ function updateEncounter(rdt) {
     if (!b.pierceBox && (b.x < BOX.x || b.x > BOX.x + BOX.w || b.y < BOX.y || b.y > BOX.y + BOX.h)) b.life = 0;
     if (!b.pierceBox) for (const Rc of E.rects) if (!Rc.dead && b.x > Rc.x && b.x < Rc.x + Rc.w && b.y > Rc.y && b.y < Rc.y + Rc.h) b.life = 0;
     if (b.life <= 0) continue;
-    if (b.friendly) { for (const f of hostiles()) if (Math.hypot(f.x - b.x, f.y - b.y) < f.r + b.r) { damageFoe(f, b.dmg, { col:b.col || "#fff" }); if (b.slow) f.slow = 3; if (b.stun) f.stun = 1.4; b.life = 0; break; } }
+    if (b.friendly) { for (const f of hostiles()) if (Math.hypot(f.x - b.x, f.y - b.y) < f.r + b.r && !(b.hitSet && b.hitSet.has(f))) { if (b.dmg > 0) damageFoe(f, b.dmg, { col:b.col || "#fff", fire:b.fire }); if (b.comp) onCompanionBolt(b, f); if (b.slow) f.slow = 3; if (b.stun) f.stun = 1.4; if (b.pierce) { (b.hitSet || (b.hitSet = new Set())).add(f); continue; } b.life = 0; break; } }
     else if (Math.hypot(p.x - b.x, p.y - b.y) < p.r + b.r - 1 && p.invis <= 0) { hurtPlayer(b.dmg, { energy:b.energy, fire:b.fire, bullet:b }); if (!b.friendly) b.life = 0; if (E.over) return; }
   }
   E.bullets = E.bullets.filter(b => b.life > 0);
@@ -283,9 +294,12 @@ function updateEncounter(rdt) {
     if (hs.length) {
       const t = hs.reduce((m, f) => dist(f, E.p) < dist(m, E.p) ? f : m);
       const dx = t.x - cx, dy = t.y - cy, l = Math.hypot(dx, dy) || 1;
-      if (G.companion === "kaelen") { E.bullets.push({ x:cx, y:cy, vx:dx / l * 230, vy:dy / l * 230, r:3, dmg:5, life:2, friendly:true, pierceBox:true, col:"#ffb35a", color:"#ffd2a0" }); E.compT = 4; }
-      else if (G.companion === "sylva") { E.bullets.push({ x:cx, y:cy, vx:dx / l * 180, vy:dy / l * 180, r:3, dmg:2, life:2, friendly:true, pierceBox:true, slow:true, col:"#c9a8ff", color:"#c9a8ff" }); E.compT = 5; }
-      else { E.bullets.push({ x:cx, y:cy, vx:dx / l * 150, vy:dy / l * 150, r:3, dmg:1, life:2.5, friendly:true, pierceBox:true, stun:true, col:"#ffd27a", color:"#ffe9a8", moth:true }); E.compT = 5; }
+      const cid = G.companion, bd = compBoltDmg(cid);
+      if (cid === "kaelen") E.bullets.push({ x:cx, y:cy, vx:dx / l * 230, vy:dy / l * 230, r:3, dmg:bd, life:2, friendly:true, pierceBox:true, fire:true, comp:cid, pierce:compPerk("kaelen", 6), col:"#ffb35a", color:"#ffd2a0" });
+      else if (cid === "sylva") E.bullets.push({ x:cx, y:cy, vx:dx / l * 180, vy:dy / l * 180, r:3, dmg:bd, life:2, friendly:true, pierceBox:true, slow:true, comp:cid, col:"#c9a8ff", color:"#c9a8ff" });
+      else for (let m = 0; m < (compPerk("bram", 9) ? 2 : 1); m++) { const tg = m ? (hs.filter(o => o !== t)[0] || t) : t, ex = tg.x - cx, ey = tg.y - cy, el = Math.hypot(ex, ey) || 1; E.bullets.push({ x:cx, y:cy - m * 6, vx:ex / el * 150, vy:ey / el * 150, r:3, dmg:bd, life:2.5, friendly:true, pierceBox:true, stun:true, comp:cid, col:"#ffd27a", color:"#ffe9a8", moth:true }); }
+      E.compT = compCooldown(cid);
+      swordOnCompanionShot();
     } else E.compT = 1;
   }
   for (const x of E.fx) x.t += rdt; E.fx = E.fx.filter(x => x.t < 0.6);
@@ -303,19 +317,22 @@ function wallHit(Rc, nx, ny) {
   if (spd < 30) return;
   E.fx.push({ type:"spark", x:p.x - nx * p.r, y:p.y - ny * p.r, t:0, col:TIER_COL[tierOf(spd)] });
   if (spd >= ATTACK_SPEED) E.combo++;
-  if (spd >= 60 && spd < 170 && Rc.type !== "bumper" && p.brace <= 0 && !has("resinTitan")) crack();
+  if (!p.walking && spd >= 60 && spd < 170 && Rc.type !== "bumper" && p.brace <= 0 && !has("resinTitan") && (!p.crackCd || p.crackCd <= 0)) {
+    crack();
+    p.crackCd = 0.35;
+  }
   if (spd >= 320 && has("amber")) E.kinetic = Math.min(5, E.kinetic + 1);
-  if (E.parryBuf > 0) { E.parryBuf = 0; parry(); } else E.wallWin = 0.13;
+  if (E.parryBuf > 0) { E.parryBuf = 0; parry(); } else E.wallWin = swordParryWin();
 }
 function fireAt(f, n, spread, speed, extra = {}) {
   const p = E.p, base = Math.atan2(p.y - f.y, p.x - f.x);
   for (let i = 0; i < n; i++) { const a = base + (n > 1 ? (i - (n - 1) / 2) * spread : 0);
-    E.bullets.push({ x:f.x, y:f.y - 4, vx:Math.cos(a) * speed, vy:Math.sin(a) * speed, r:3, dmg:extra.dmg || f.F.dmg, life:4, energy:extra.energy ?? f.F.energy, fire:extra.fire ?? f.F.fire, spr:f.F.spr[0] === "tiny" && TINY[f.F.spr[1]].proj ? f.F.spr : null, color:extra.color || (f.F.energy ? "#9fe8ff" : f.F.fire ? "#ffb35a" : "#d9c9f5") }); }
+    E.bullets.push({ x:f.x, y:f.y - 4, vx:Math.cos(a) * speed, vy:Math.sin(a) * speed, r:3, dmg:extra.dmg || f.dmg, life:4, energy:extra.energy ?? f.F.energy, fire:extra.fire ?? f.F.fire, spr:f.F.spr[0] === "tiny" && TINY[f.F.spr[1]].proj ? f.F.spr : null, color:extra.color || (f.F.energy ? "#9fe8ff" : f.F.fire ? "#ffb35a" : "#d9c9f5") }); }
 }
 function radial(f, n, speed, extra = {}) {
   const off = Math.random() * Math.PI;
   for (let i = 0; i < n; i++) { const a = off + i / n * Math.PI * 2;
-    E.bullets.push({ x:f.x, y:f.y - 4, vx:Math.cos(a) * speed, vy:Math.sin(a) * speed, r:extra.r || 3, dmg:extra.dmg || Math.max(2, f.F.dmg - 2), life:extra.life || 4, energy:f.F.energy, fire:f.F.fire, spr:null, color:extra.color || (f.F.energy ? "#9fe8ff" : f.F.fire ? "#ffb35a" : "#d9c9f5") }); }
+    E.bullets.push({ x:f.x, y:f.y - 4, vx:Math.cos(a) * speed, vy:Math.sin(a) * speed, r:extra.r || 3, dmg:extra.dmg || f.dmg, life:extra.life || 4, energy:f.F.energy, fire:f.F.fire, spr:null, color:extra.color || (f.F.energy ? "#9fe8ff" : f.F.fire ? "#ffb35a" : "#d9c9f5") }); }
 }
 function updateFoe(f, dt) {
   if (f.dead) return;
@@ -323,6 +340,8 @@ function updateFoe(f, dt) {
   if (f.dying > 0) { f.dying -= dt; if (f.dying <= 0) f.dead = true; return; }
   if (f.calm) { f.calm += dt; f.x += 30 * dt; if (f.calm > 1.6) f.dead = true; return; }
   for (const k of ["hitCd","contactCd","hurt","stun","slow","atk"]) f[k] = Math.max(0, f[k] - dt);
+  if (f.part) f.part.hitCd = Math.max(0, f.part.hitCd - dt);
+  swordTickFoe(f, dt); if (f.dead || f.dying) return;
   const p = E.p, F = f.F, dx = p.x - f.x, dy = p.y - f.y, d = Math.hypot(dx, dy) || 1;
   const seen = p.invis <= 0;
   let spd = F.speed * (f.slow > 0 ? 0.5 : 1); if (f.stun > 0) spd = 0;
@@ -334,7 +353,7 @@ function updateFoe(f, dt) {
     if (seen) { if (d < 60) { mx = -dx / d; my = -dy / d; } else if (d > 100) { mx = dx / d; my = dy / d; } else { mx = -dy / d * 0.6; my = dx / d * 0.6; } }
     f.fireCd -= dt; if (f.fireCd <= 0 && seen && f.stun <= 0) { fireAt(f, F.proj.n, F.proj.spread, F.proj.speed, { energy:F.proj.energy, fire:F.proj.fire }); f.fireCd = F.proj.cd; f.atk = 0.3; }
   }
-  else if (ai === "spore") { if (seen) { mx = dx / d * 0.6; my = dy / d * 0.6; } f.fireCd -= dt; if (f.fireCd <= 0 && f.stun <= 0) { radial(f, 6, 42, { dmg:2, life:5, color:"#c9a8ff" }); f.fireCd = 3.2; f.atk = 0.3; } }
+  else if (ai === "spore") { if (seen) { mx = dx / d * 0.6; my = dy / d * 0.6; } f.fireCd -= dt; if (f.fireCd <= 0 && f.stun <= 0) { radial(f, 6, 42, { dmg:1, life:5, color:"#c9a8ff" }); f.fireCd = 3.2; f.atk = 0.3; } }
   if (ai === "charger" || (ai === "boss" && f.state !== "track")) chargerAI(f, dt, dx, dy, d, seen);
   if (ai === "charger" && f.state === "track" && seen) { mx = dx / d * 0.7; my = dy / d * 0.7; }
   if (ai === "boss") bossAI(f, dt, dx, dy, d, seen, (a, b) => { mx = a; my = b; });
@@ -362,14 +381,15 @@ function bossAI(f, dt, dx, dy, d, seen, setMove) {
   f.patT -= dt;
   if (f.patT > 0 || f.state !== "track" || f.stun > 0) return;
   const pats = { flare:["burst","flare","aimed","charge"], sap:["burst","sap","charge","aimed"], spores:["spores","aimed","burst","spores"], beam:["beam","burst","aimed","beam"], summon:["summon","burst","charge","aimed"] }[F.special];
-  const pat = pats[f.patI++ % pats.length]; f.patT = 2.6; f.atk = 0.5;
+  let pat = pats[f.patI++ % pats.length]; f.patT = 2.6; f.atk = 0.5;
+  if (f.part && f.part.broken && ["flare","sap","spores","beam","summon"].includes(pat)) pat = f.patI % 2 ? "burst" : "aimed";
   const p = E.p, warn = G.companion === "sylva" ? 1.4 : 0.9;
   if (pat === "burst") radial(f, 12, 72);
-  if (pat === "aimed") for (let i = 0; i < 3; i++) f.queue.push({ t:0.25, fn:() => fireAt(f, 3, 0.25, 115, { dmg:F.dmg - 2 }) });
+  if (pat === "aimed") for (let i = 0; i < 3; i++) f.queue.push({ t:0.25, fn:() => fireAt(f, 3, 0.25, 115, { dmg:Math.max(1, f.dmg - 1) }) });
   if (pat === "charge") { f.stT = 0; chargerAI(f, 0, dx, dy, d, true); }
-  if (pat === "flare") for (let i = 0; i < 3; i++) E.zones.push({ x:clamp(p.x + (Math.random() - 0.5) * 70, BOX.x + 10, BOX.x + BOX.w - 10), y:clamp(p.y + (Math.random() - 0.5) * 50, BOX.y + 10, BOX.y + BOX.h - 10), r:20, t:warn + 0.1, dmg:5 });
+  if (pat === "flare") for (let i = 0; i < 3; i++) E.zones.push({ x:clamp(p.x + (Math.random() - 0.5) * 70, BOX.x + 10, BOX.x + BOX.w - 10), y:clamp(p.y + (Math.random() - 0.5) * 50, BOX.y + 10, BOX.y + BOX.h - 10), r:20, t:warn + 0.1, dmg:f.dmg });
   if (pat === "sap") { if (E.sap.length < 6) for (let i = 0; i < 2; i++) E.sap.push({ x:BOX.x + 40 + Math.random() * (BOX.w - 80), y:BOX.y + 20 + Math.random() * (BOX.h - 40), r:14 }); radial(f, 6, 50, { color:"#e0a030" }); }
-  if (pat === "spores") radial(f, 10, 38, { dmg:3, life:6, r:4, color:"#c9a8ff" });
+  if (pat === "spores") radial(f, 10, 38, { life:6, r:4, color:"#c9a8ff" });
   if (pat === "beam") E.beams.push({ axis:"h", pos:p.y, state:"warn", t:warn, temp:true }, { axis:"v", pos:p.x, state:"warn", t:warn, temp:true });
   if (pat === "summon" && hostiles().length < 4) E.foes.push(makeFoe(Math.random() < 0.5 ? "rootDemon" : "husk", f.x - 24, clamp(f.y + (Math.random() - 0.5) * 30, BOX.y + 10, BOX.y + BOX.h - 10)));
 }
@@ -385,6 +405,10 @@ function finishEncounter() {
   if (res === "win") {
     const reward = {}; for (const [k, r] of Object.entries(A.yield)) reward[k] = [Math.ceil(r[0] * 0.5), Math.ceil(r[1] * 0.8) + Math.floor(E.killed.length / 2)];
     let got = gain(reward);
+    const org = Math.round(E.beastK * 0.6) + (E.boss ? 3 : 0); if (org) got += " " + gain({ organs:org });
+    if (compPerk("bram", 6) && G.companion === "bram") got += " " + gain({ coins:[2, 5], scrap:1 });
+    const xpWon = E.foes.filter(f => !f.phantom && (f.calm || f.hp <= 0)).reduce((s, f) => s + foeXP(f), 0);
+    if (xpWon) { lines.push(`+${xpWon} XP from Spore-Essence.`); setTimeout(() => gainXP(xpWon, "Spore-Essence"), 50); }
     let bal = E.blightK * 3 - E.beastK * 2 + E.calmed * 2;
     G.stats.kills += E.killed.length; G.stats.calms += E.calmed;
     lines.push(`Victory! Best combo: ${E.best}${E.best >= 2 ? ` — ${(STYLE.find(s => E.best >= s[0]) || [0, ""])[1]}` : ""}.`);
@@ -396,6 +420,8 @@ function finishEncounter() {
       got += " " + gain({ rareSeeds:1, coins:20 });
       lines.push(`From its heart you carve a mythic graft: ${GRAFTS[mg].name}. The wounded forest settles at 45 balance (+2 taint).`);
       if (!r.echo) { r.echo = true; G.echoes.push(id); lines.push("A memory floods out of the dying Warden:", ECHOES[id]); log("Root Echo received."); }
+      const relic = id === "glass" ? "prismEdge" : id === "sun" ? "pruner" : null;
+      if (relic) { const rl = grantRelic(relic); if (rl) lines.push(id === "glass" ? "Fused glass from the Leviathan's carapace sharpens into a blade of refracted light." : "Wedged in the Warden's nest: a pre-collapse chainsaw-greatsword, still humming.", rl); }
       log(`Hunted the ${FOES[REGIONS[id].warden].name}.`);
     } else {
       if (REGIONS[id] && status(G.regions[id].bal) === "enraged") G.taint += 1;
@@ -422,7 +448,10 @@ function finishEncounter() {
 function drawEncounter() {
   const t = E.t, p = E.p, R = E.region;
   ctx.save();
-  if (E.shake > 0) ctx.translate((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3);
+  if (E.shake > 0) {
+    const mag = Math.min(2.5, E.shake * 15);
+    ctx.translate((Math.random() - 0.5) * mag, (Math.random() - 0.5) * mag);
+  }
   ctx.fillStyle = "#000"; ctx.fillRect(-4, -4, VW + 8, VH + 8);
   const bgc = { sun:"rgba(255,200,80,", trunk:"rgba(230,140,40,", silt:"rgba(160,110,255,", glass:"rgba(90,220,255,", roots:"rgba(255,60,60," }[R];
   ctx.strokeStyle = bgc + "0.12)"; ctx.lineWidth = 1;
@@ -458,6 +487,9 @@ function drawEncounter() {
     if (f.state === "wind") { ctx.strokeStyle = `rgba(255,60,60,${0.5 + Math.sin(performance.now() / 25) * 0.5})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(f.x, f.y - 6 * sc, f.r + 4, 0, 7); ctx.stroke(); }
     const anim = f.dying > 0 ? "death" : f.hurt > 0 ? "hit" : (f.atk > 0 ? "atk" : f.moving ? "walk" : "idle");
     drawFoeSprite(ctx, f.F.spr, anim, f.dying > 0 ? 0.7 - f.dying : f.t, f.dir, f.x, f.y + 1, sc, a);
+    if (f.part && !f.part.broken && !f.dying) { const pp = partPos(f), pr = 4 + Math.sin(t * 6) * 1; ctx.save(); ctx.shadowColor = "#ffe46a"; ctx.shadowBlur = 6; ctx.strokeStyle = "#ffe46a"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(pp.x, pp.y, pr + 1, 0, 7); ctx.stroke(); ctx.fillStyle = "rgba(255,228,106,0.35)"; ctx.fill(); ctx.restore(); outlineText(ctx, f.part.name, pp.x, pp.y - 8, "#ffe46a", "5px 'Pixelify Sans'"); }
+    if (f.mutant && !f.dying) { ctx.fillStyle = `rgba(255,150,60,${0.5 + Math.sin(t * 8) * 0.3})`; ctx.beginPath(); ctx.arc(f.x + 4, f.y - 10 * sc, 2.5, 0, 7); ctx.fill(); }
+    if (f.marked && !f.dying) { ctx.fillStyle = "#9ad04a"; ctx.fillRect(f.x - 1, f.y - 18 * sc, 2, 2); }
     if (f.stun > 0) outlineText(ctx, "✶", f.x, f.y - 16 * sc, "#ffe46a", "8px sans-serif");
     if (f.calm) outlineText(ctx, "♥", f.x, f.y - 16 * sc, "#9ad04a", "8px sans-serif");
   }
@@ -469,6 +501,7 @@ function drawEncounter() {
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, 7); ctx.fill();
   const pa = p.invis > 0 ? 0.3 : (p.iframes > 0 && Math.floor(performance.now() / 50) % 2 ? 0.5 : 1);
   drawChar(ctx, CHAR.player, p.dir, sp > 20 ? [0,1,2,1][Math.floor(p.t * 12) % 4] : 1, p.x, p.y + 9, pa);
+  drawSword(p, sp);
   if (p.cracks) { ctx.strokeStyle = "rgba(220,240,255,0.95)"; ctx.lineWidth = 0.8; for (let i = 0; i < p.cracks * 3; i++) { const a = i * 2.4 + 0.5; ctx.beginPath(); ctx.moveTo(p.x, p.y - 2); ctx.lineTo(p.x + Math.cos(a) * 7, p.y - 2 + Math.sin(a) * 8); ctx.lineTo(p.x + Math.cos(a + 0.4) * 10, p.y - 2 + Math.sin(a + 0.4) * 10); ctx.stroke(); } }
   if (p.brace > 0) { ctx.strokeStyle = "#9fe8f0"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y - 1, 10, 0, 7); ctx.stroke(); }
   if (overgrown()) { ctx.strokeStyle = "#58b84f"; ctx.lineWidth = 1; for (let i = 0; i < 3; i++) { const a = t * 2 + i * 2.1; ctx.beginPath(); ctx.arc(p.x, p.y - 1, 11, a, a + 0.8); ctx.stroke(); } }
@@ -498,7 +531,7 @@ function drawEncounter() {
   drawChar(ctx, C.char, 2, Math.floor(performance.now() / 330) % 2 ? 1 : 0, BOX.x - 26, BOX.y + BOX.h - 2);
   outlineText(ctx, C.name, BOX.x - 26, BOX.y + BOX.h + 8, "#9fd3ff", "6px 'Pixelify Sans'");
   ctx.restore();
-  drawEncHud();
+  drawEncHud(); drawSwordHud();
   if (E.intro > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.max(0, E.flash)})`; ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(0, VH / 2 - 22, VW, 44);
     outlineText(ctx, E.boss ? `${E.foes[0].F.name} attacks!` : `${E.foes.map(f => f.F.name).join(", ")} ${E.foes.length > 1 ? "draw" : "draws"} near!`, VW / 2, VH / 2 - 4, "#ffe46a", "11px 'Pixelify Sans'");
@@ -526,14 +559,18 @@ function drawEncHud() {
   const p = E.p;
   const hs = E.foes.filter(f => !f.dead && !f.phantom && !f.calm);
   hs.slice(0, 4).forEach((f, i) => { const x = 8 + i * 94, y = 6;
-    outlineText(ctx, f.F.name + (f.F.armored ? " [armored]" : ""), x, y + 6, f.F.boss ? "#ff8a80" : "#fff", "7px 'Pixelify Sans'", "left");
-    ctx.fillStyle = "#222"; ctx.fillRect(x, y + 9, 86, 4); ctx.fillStyle = f.F.boss ? "#ff3b3b" : "#e0473f"; ctx.fillRect(x, y + 9, 86 * Math.max(0, f.hp) / f.maxHp, 4); });
+    const tr = enemyTier(f.lvl), ar = Math.max(0, f.armor - f.armorCrack);
+    outlineText(ctx, `Lv${f.lvl} ${f.F.name}`, x, y + 6, f.F.boss ? "#ff8a80" : "#fff", "7px 'Pixelify Sans'", "left");
+    outlineText(ctx, `${tr.name}${ar ? ` · Bark-Armor ${ar}` : ""}${f.mutant ? " · Spore-sac" : ""}`, x, y + 20, tr.col, "5px 'Pixelify Sans'", "left");
+    ctx.fillStyle = "#222"; ctx.fillRect(x, y + 9, 86, 4); ctx.fillStyle = f.F.boss ? "#ff3b3b" : "#e0473f"; ctx.fillRect(x, y + 9, 86 * Math.max(0, f.hp) / f.maxHp, 4);
+    outlineText(ctx, `${Math.max(0, Math.ceil(f.hp))}/${f.maxHp}`, x + 86, y + 6, "#ddd", "5px 'Pixelify Sans'", "right");
+    if (f.part && !f.part.broken) { ctx.fillStyle = "#332"; ctx.fillRect(x, y + 22, 50, 2); ctx.fillStyle = "#ffe46a"; ctx.fillRect(x, y + 22, 50 * f.part.hp / f.part.maxHp, 2); outlineText(ctx, f.part.name, x + 53, y + 25, "#ffe46a", "5px 'Pixelify Sans'", "left"); } });
   const by = BOX.y + BOX.h + 6;
   outlineText(ctx, "HP", BOX.x, by + 7, "#fff", "7px 'Pixelify Sans'", "left");
   ctx.fillStyle = "#300"; ctx.fillRect(BOX.x + 14, by + 1, 70, 7); ctx.fillStyle = "#ffdf3a"; ctx.fillRect(BOX.x + 14, by + 1, 70 * G.hp / maxHp(), 7);
   outlineText(ctx, `${Math.ceil(G.hp)}/${maxHp()}`, BOX.x + 88, by + 7, "#fff", "7px 'Pixelify Sans'", "left");
   outlineText(ctx, "ST", BOX.x, by + 18, "#fff", "7px 'Pixelify Sans'", "left");
-  for (let i = 0; i < 10; i++) { ctx.fillStyle = i < Math.floor(E.stamina) ? "#5fb3ff" : "#123"; ctx.fillRect(BOX.x + 14 + i * 7, by + 12, 6, 6); }
+  for (let i = 0; i < maxStamina(); i++) { ctx.fillStyle = i < Math.floor(E.stamina) ? "#5fb3ff" : "#123"; ctx.fillRect(BOX.x + 14 + i * Math.min(7, 70 / maxStamina()), by + 12, Math.min(6, 70 / maxStamina() - 1), 6); }
   outlineText(ctx, "SHELL", BOX.x + 90, by + 18, "#fff", "7px 'Pixelify Sans'", "left");
   for (let i = 0; i < 3; i++) { ctx.strokeStyle = i < p.cracks ? "#ff8080" : "#9fd3ff"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(BOX.x + 118 + i * 9, by + 12); ctx.lineTo(BOX.x + 122 + i * 9, by + 18); ctx.lineTo(BOX.x + 126 + i * 9, by + 12); ctx.closePath(); ctx.stroke(); }
   if (has("amber")) outlineText(ctx, `KINETIC ${E.kinetic}`, BOX.x + 150, by + 18, "#ffb35a", "7px 'Pixelify Sans'", "left");

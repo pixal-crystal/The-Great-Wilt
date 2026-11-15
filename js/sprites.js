@@ -18,7 +18,19 @@ const ok = im => im && im.complete && im.naturalWidth > 0;
 const charPath = n => `${PATHS.chars}character_${n}_frame16x20.png`;
 
 /* ---------------- sprite tables ---------------- */
-const TS32 = {chest:[32,22,32,36],rock:[132,10,26,18],rock2:[162,4,28,24],mrock:[132,42,26,18],mrock2:[162,36,28,24],boulder:[196,4,56,56],mboulder:[196,68,56,56],grass:[256,0,32,32],grass2:[288,0,32,32],deadbush:[320,0,30,30],dgrass:[352,0,32,32],dgrass2:[384,0,32,32],green:[256,32,32,32],bush:[288,32,32,30],tallgrass:[320,34,32,60],clover:[352,32,32,30],flowers:[384,32,32,28],flower2:[356,64,28,28],log:[256,66,62,26],deadtree:[4,70,82,84],deadtree2:[96,64,86,90],stump:[214,136,52,50],tree:[0,160,96,122],otree:[96,160,96,122],tent:[192,192,98,126],fire1:[352,128,32,26],fire2:[384,128,32,26],logs:[320,128,32,26],bag:[288,288,32,30],plankH:[544,192,30,32],plankV:[480,160,32,32],dirt:[576,32,32,32],rockfloor:[32,416,32,32],water:[768,32,32,32],steps:[352,256,32,32],cattail:[160,320,32,56],redflower:[192,322,30,28],sunflower:[416,2,32,56],door:[290,168,28,56],marker:[118,310,20,20]};
+const TS32 = {
+  chest:[32,22,32,36],rock:[132,10,26,18],rock2:[162,4,28,24],mrock:[132,42,26,18],mrock2:[162,36,28,24],boulder:[196,4,56,56],mboulder:[196,68,56,56],
+  grass:[256,0,32,32],grass2:[288,0,32,32],deadbush:[320,0,30,30],dgrass:[352,0,32,32],dgrass2:[384,0,32,32],green:[256,32,32,32],bush:[288,32,32,30],
+  tallgrass:[320,34,32,60],clover:[352,32,32,30],flowers:[384,32,32,28],flower2:[356,64,28,28],log:[256,66,62,26],deadtree:[4,70,82,84],deadtree2:[96,64,86,90],
+  stump:[214,136,52,50],tree:[0,160,96,122],otree:[96,160,96,122],tent:[192,192,98,126],fire1:[352,128,32,26],fire2:[384,128,32,26],logs:[320,128,32,26],
+  bag:[288,288,32,30],plankH:[544,192,30,32],plankV:[480,160,32,32],dirt:[576,32,32,32],
+  dirt_tl:[544,0,32,32],dirt_t:[576,0,32,32],dirt_tr:[608,0,32,32],
+  dirt_l:[544,32,32,32],dirt_c:[576,32,32,32],dirt_r:[608,32,32,32],
+  dirt_bl:[544,64,32,32],dirt_b:[576,64,32,32],dirt_br:[608,64,32,32],
+  dirt_v:[512,32,32,32],
+  rockfloor:[32,416,32,32],water:[768,32,32,32],steps:[352,256,32,32],cattail:[160,320,32,56],redflower:[192,322,30,28],sunflower:[416,2,32,56],
+  door:[290,168,28,56],marker:[118,310,20,20]
+};
 const TS16 = Object.fromEntries(Object.entries(TS32).map(([k, r]) => [k, r.map(v => Math.round(v / 2))]));
 function t16(c, key, x, y, w, h, a = 1) {
   const r = TS16[key], im = img(PATHS.tiles16); if (!r || !ok(im)) return;

@@ -3,11 +3,11 @@ const PHASES = ["Dawn","Day","Dusk","Night"];
 function newGame() {
   G = { day:1, phase:0, loc:"trunk",
     regions:{ sun:{ bal:72, warden:false, echo:false }, trunk:{ bal:58, warden:false, echo:false }, silt:{ bal:34, warden:false, echo:false, bunker:false }, glass:{ bal:50, warden:false, echo:false, bunker:false } },
-    res:{ sap:3, seeds:2, rareSeeds:1, scrap:2, crystal:0, spores:0, coins:18, potions:2, bombs:1 },
-    hp:30, taint:0, owned:["vineWhip","gillFronds","pheromone"], equipped:{ resp:["gillFronds"], limb:["vineWhip"], sense:["pheromone"] },
+    res:{ sap:3, seeds:2, rareSeeds:1, scrap:2, crystal:0, spores:0, coins:18, potions:2, bombs:1, organs:0 },
+    hp:10, taint:0, owned:["vineWhip","gillFronds","pheromone"], equipped:{ resp:["gillFronds"], limb:["vineWhip"], sense:["pheromone"] },
     companion:"sylva", upgrades:{ greenhouse:false, refinery:false, mast:false }, echoes:[],
     stats:{ hunts:0, rituals:0, kills:0, calms:0, fights:0, bestCombo:0 }, drift:{}, log:[], used:{}, opened:{}, coreDown:false, over:false };
-  computeDrift();
+  computeDrift(); ensureArms(); ensureProgress();
 }
 const save = () => { try { if (G && !G.over) localStorage.setItem("greatWiltRPG", JSON.stringify(G)); } catch (e) {} };
 const loadSave = () => { try { const s = localStorage.getItem("greatWiltRPG"); return s ? JSON.parse(s) : null; } catch (e) { return null; } };
@@ -15,10 +15,10 @@ function log(m) { G.log.unshift(`D${G.day} ${m}`); if (G.log.length > 60) G.log.
 const equippedList = () => [...G.equipped.resp, ...G.equipped.limb, ...G.equipped.sense];
 const has = id => equippedList().includes(id);
 const graftLoad = () => equippedList().reduce((s, id) => s + GRAFTS[id].tier, 0);
-const symbiosis = () => graftLoad() + G.taint;
+const symbiosis = () => graftLoad() + G.taint + (typeof bladeSymb === "function" ? bladeSymb() : 0);
 const overgrown = () => symbiosis() > SYMB_CAP;
-const maxHp = () => 30 + (overgrown() ? 10 : 0) + (has("resinTitan") ? 6 : 0);
-const baseDmg = () => Math.round((4 + (has("thorn") ? 2 : 0) + (has("resinTitan") ? 4 : 0)) * (overgrown() ? 1.5 : 1));
+const maxHp = () => 10 + ((G && G.lvl) || 1) - 1 + (overgrown() ? 2 : 0) + (has("resinTitan") ? 2 : 0);
+const baseDmg = () => ((G && G.attr) ? G.attr.might : 1) + (has("thorn") ? 1 : 0) + (has("resinTitan") ? 2 : 0) + (overgrown() ? 1 : 0);
 const status = b => b >= 60 ? "balanced" : b >= 30 ? "depleted" : "enraged";
 const STATUS_LABEL = { balanced:"Balanced", depleted:"Depleted", enraged:"Enraged" };
 const STATUS_COLOR = { balanced:"#6fcf6a", depleted:"#e8cf4a", enraged:"#e0473f" };
