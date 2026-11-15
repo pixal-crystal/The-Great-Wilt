@@ -15,8 +15,9 @@
   <div id="stage"><canvas id="game"></canvas></div>
   <div id="top-bar">
     <button id="quest-btn" class="top-btn" onclick="openPanel(questsPanel)" title="Quests &amp; Objectives (Q)">📜 Quests</button>
-    <button id="inv-btn" class="top-btn" onclick="openPanel(invPanel)" title="Grafts &amp; Pack (I)">🎒 Pack</button>
+    <button id="inv-btn" class="top-btn" onclick="openPanel(invPanel)" title="Inventory (E)">🎒 Inventory</button>
     <button id="map-btn" class="top-btn" onclick="openPanel(pulsePanel)" title="The Pulse (M)">🗺 Pulse</button>
+    <button id="guide-btn" class="top-btn" onclick="openPanel(tutorialPanel)" title="Tutorial &amp; Field Guide">📖 Guide</button>
   </div>
   <button id="settings-btn" onclick="openPanel(settingsPanel)" title="Settings &amp; Controls (O)">⚙ Settings</button>
   <div id="hud" class="hidden">
@@ -42,6 +43,7 @@
   <script src="js/weapons.js"></script>
   <script src="js/progression.js"></script>
   <script src="js/panels.js"></script>
+  <script src="js/tutorial.js"></script>
   <script src="js/title.js"></script>
   <script src="js/main.js"></script>
 </body>

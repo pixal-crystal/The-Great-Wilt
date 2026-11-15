@@ -117,8 +117,8 @@ function updateWorld(dt) {
   }
   interactTarget = findInteract();
   const pr = document.getElementById("prompt");
-  if (interactTarget) { pr.classList.remove("hidden"); pr.innerHTML = `<kbd>${keyLabel((BINDINGS.interact && BINDINGS.interact[0]) || "e")}</kbd> ${interactTarget.label}`; } else pr.classList.add("hidden");
-  if (interactTarget && (consumeAction("interact") || pressed["e"] || pressed[" "] || pressed["enter"])) { pr.classList.add("hidden"); interactTarget.fn(); }
+  if (interactTarget) { pr.classList.remove("hidden"); pr.innerHTML = `<kbd>${keyLabel((BINDINGS.interact && BINDINGS.interact[0]) || "f")}</kbd> ${interactTarget.label}`; } else pr.classList.add("hidden");
+  if (interactTarget && (consumeAction("interact") || pressed["f"] || pressed[" "] || pressed["enter"])) { pr.classList.add("hidden"); interactTarget.fn(); }
 
   const targetCamX = clamp(PL.x - VW / 2, 0, MW * TL - VW);
   const targetCamY = clamp(PL.y - 10 - VH / 2, 0, MH * TL - VH);
@@ -209,7 +209,7 @@ function forestRumor(id) {
 function campDialog() {
   say(["The Strider-Caravan kneels by the campfire, chewing leaves."], { icon:IC(1,8), name:"Strider-Caravan",
     options:[{ label:"Rest until dawn (heal)", fn:() => doFade(() => { G.phase = 0; advanceDay(); if (G.over) return showCollapse(); G.hp = maxHp(); log("Rested at camp."); spawnFoes(); spawnWarden(); toast(`Day ${G.day}. You wake rested.`, "#9ad04a"); save(); }) },
-      { label:"Caravan (companions, upgrades, crafting)", fn:() => openPanel(campPanel) }, { label:"Workbench & Armory (swords)", fn:() => openPanel(armoryPanel) }, { label:"Leave" }] });
+      { label:"Caravan (companions, upgrades, crafting)", fn:() => openPanel(campPanel) }, { label:"Workbench & Armory (swords)", fn:() => openPanel(armoryPanel) }, { label:"Field Guide (Tutorial & Lore)", fn:() => openPanel(tutorialPanel) }, { label:"Leave" }] });
 }
 function wardenDialog() {
   const W = FOES[WARDEN.type];
@@ -283,7 +283,7 @@ function drawWorld() {
   const phaseTint = ["rgba(255,190,140,0.08)", null, "rgba(150,60,20,0.16)", "rgba(10,20,70,0.42)"][G.phase];
   if (phaseTint) { ctx.fillStyle = phaseTint; ctx.fillRect(0, 0, VW, VH); }
   if (dark || G.phase === 3) drawLight(PL.x - camX, PL.y - camY - 10, dark ? 70 : 110, dark ? 0.9 : 0.4);
-  if (interactTarget && !uiOpen()) { const X = interactTarget.x - camX, Y = interactTarget.y - camY - 30 + Math.sin(t * 5) * 1.5; ctx.fillStyle = "#000"; ctx.fillRect(X - 5, Y - 6, 10, 9); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(X - 5.5, Y - 6.5, 11, 10); outlineText(ctx, "E", X, Y + 1, "#ffe46a", "7px 'Pixelify Sans'"); }
+  if (interactTarget && !uiOpen()) { const X = interactTarget.x - camX, Y = interactTarget.y - camY - 30 + Math.sin(t * 5) * 1.5; ctx.fillStyle = "#000"; ctx.fillRect(X - 5, Y - 6, 10, 9); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.strokeRect(X - 5.5, Y - 6.5, 11, 10); outlineText(ctx, keyLabel((BINDINGS.interact && BINDINGS.interact[0]) || "f"), X, Y + 1, "#ffe46a", "7px 'Pixelify Sans'"); }
 }
 const lightCv = document.createElement("canvas"); lightCv.width = VW; lightCv.height = VH;
 function drawLight(x, y, r, a) {

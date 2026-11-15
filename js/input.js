@@ -37,9 +37,9 @@ const DEFAULT_BINDINGS = {
   left: ["a", "arrowleft"],
   right: ["d", "arrowright"],
   run: ["shift"],
-  interact: ["e", "enter"],
+  interact: ["f", "enter"],
   quests: ["q"],
-  pack: ["i", "tab"],
+  pack: ["e", "i", "tab"],
   pulse: ["m"],
   settings: ["o"],
   parry: [" "],
@@ -48,7 +48,7 @@ const DEFAULT_BINDINGS = {
   act1: ["1"],
   act2: ["2"],
   act3: ["3"],
-  fullscreen: ["f"],
+  fullscreen: ["f11"],
 };
 
 const BINDING_ACTIONS = [
@@ -59,7 +59,7 @@ const BINDING_ACTIONS = [
   { id: "run", label: "Run / Dash", category: "Movement" },
   { id: "interact", label: "Interact / Confirm", category: "Interactions" },
   { id: "quests", label: "Quests Menu", category: "Menus" },
-  { id: "pack", label: "Grafts & Pack", category: "Menus" },
+  { id: "pack", label: "Inventory (Pack & Grafts)", category: "Menus" },
   { id: "pulse", label: "The Pulse Map", category: "Menus" },
   { id: "settings", label: "Settings Menu", category: "Menus" },
   { id: "parry", label: "Wall Parry", category: "Combat" },
@@ -77,6 +77,15 @@ function loadBindings() {
     const s = localStorage.getItem("greatWilt_bindings");
     if (s) {
       const parsed = JSON.parse(s);
+      if (parsed.pack && !parsed.pack.includes("e") && parsed.interact && parsed.interact.includes("e")) {
+        parsed.pack = ["e", ...parsed.pack];
+        parsed.interact = parsed.interact.filter(k => k !== "e");
+        if (!parsed.interact.includes("f")) parsed.interact.unshift("f");
+      }
+      if (parsed.fullscreen && parsed.fullscreen.includes("f") && (!parsed.interact || parsed.interact.includes("f"))) {
+        parsed.fullscreen = parsed.fullscreen.filter(k => k !== "f");
+        if (!parsed.fullscreen.length) parsed.fullscreen.push("f11");
+      }
       return { ...DEFAULT_BINDINGS, ...parsed };
     }
   } catch (_) {}

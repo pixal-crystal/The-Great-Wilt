@@ -8,10 +8,11 @@ function showTitle() {
     <div class="row" style="justify-content:center;margin:18px 0">
       <button class="pri" onclick="beginGame(true)">Begin a new season</button>
       ${s && !s.over ? `<button onclick="beginGame(false)">Continue (Day ${s.day})</button>` : ""}
+      <button onclick="openPanel(tutorialPanel)">📖 Field Guide / Tutorial</button>
       <button onclick="openPanel(settingsPanel)">⚙ Settings</button>
     </div>
     <div class="box" style="text-align:left;padding:12px 14px;font-size:14px">
-      <b style="color:#f0b440">Explore</b> — <kbd>WASD</kbd> walk, <kbd>Shift</kbd> run, <kbd>E</kbd> talk / harvest / open, <kbd>Q</kbd> quests, <kbd>I</kbd> grafts &amp; bag, <kbd>M</kbd> Pulse map, <kbd>O</kbd> settings. Walk off a map edge to travel (takes half a day).<br>
+      <b style="color:#f0b440">Explore</b> — <kbd>WASD</kbd> walk, <kbd>Shift</kbd> run, <kbd>F</kbd> talk / harvest / open, <kbd>E</kbd> inventory, <kbd>Q</kbd> quests, <kbd>M</kbd> Pulse map, <kbd>O</kbd> settings. Walk off a map edge to travel (takes half a day).<br>
       <b style="color:#f0b440">Fight</b> — touch a monster to enter an encounter box. <b>Drag back and release</b> to slingshot yourself into enemies. Faster = harder hits.
       <kbd>Space</kbd> right as you hit a wall = <b>Parry</b>. <kbd>Shift</kbd> dash, <kbd>1</kbd>–<kbd>5</kbd> graft abilities, <kbd>H</kbd> tonic, <kbd>B</kbd> bomb, hold <kbd>Esc</kbd> to flee.
     </div>
@@ -25,7 +26,8 @@ function beginGame(fresh) {
   document.getElementById("title").classList.add("hidden");
   enterRegion(G.loc);
   if (fresh) say(["The Great Wilt spreads from the Iron Roots: pale, silent, calcifying.", "Your Strider-Caravan is parked here in the Twilight Trunk. Sylva sits by the fire, blindfold fluttering.",
-    "\"The forest is drifting out of balance, Graftwarden. Harvest gently. Clear the waste. And when beasts come for you...\"", "\"...remember: speed is power. Pull back, and let go.\""], { char:CHAR.sylva, name:"Sylva" });
+    "\"The forest is drifting out of balance, Graftwarden. Harvest gently. Clear the waste. And when beasts come for you...\"", "\"...remember: speed is power. Pull back, and let go.\""],
+    { char:CHAR.sylva, name:"Sylva", options:[{ label:"Open Field Guide (Tutorial)", fn:() => openPanel(tutorialPanel) }, { label:"I'm ready. Let's explore the canopy." }] });
 }
 function ending(id) {
   const text = {

@@ -32,16 +32,17 @@ function buy(kind, key, price) { if (G.res.coins < price) return; G.res.coins -=
 function sell(k, pr) { if (G.res[k] < 1) return; G.res[k]--; G.res.coins += pr; refreshPanel(); }
 function refineryRecipes() { const k = G.companion === "kaelen" ? 1 : 0; return [["bombs", { sap:Math.max(1, 2 - k), crystal:1 }], ["potions", { sap:Math.max(1, 2 - k), seeds:1 }]]; }
 function panelTabsHTML(activeTab) {
-  const pK = keyLabel((BINDINGS.pack && BINDINGS.pack[0]) || "i");
+  const pK = keyLabel((BINDINGS.pack && BINDINGS.pack[0]) || "e");
   const qK = keyLabel((BINDINGS.quests && BINDINGS.quests[0]) || "q");
   const mK = keyLabel((BINDINGS.pulse && BINDINGS.pulse[0]) || "m");
   const oK = keyLabel((BINDINGS.settings && BINDINGS.settings[0]) || "o");
   return `<div class="panel-tabs">
-    <button class="panel-tab ${activeTab === 'inv' ? 'active' : ''}" onclick="openPanel(invPanel)">${iconHTML(ICON.chest, 16)} Grafts &amp; Pack [${pK}]</button>
+    <button class="panel-tab ${activeTab === 'inv' ? 'active' : ''}" onclick="openPanel(invPanel)">${iconHTML(ICON.chest, 16)} Inventory [${pK}]</button>
     <button class="panel-tab ${activeTab === 'quests' ? 'active' : ''}" onclick="openPanel(questsPanel)">${iconHTML(ICON.echo, 16)} Quests [${qK}]</button>
     <button class="panel-tab ${activeTab === 'armory' ? 'active' : ''}" onclick="openPanel(armoryPanel)">${iconHTML(sword().icon, 16)} Armory</button>
     <button class="panel-tab ${activeTab === 'camp' ? 'active' : ''}" onclick="openPanel(campPanel)">${tileHTML("tent", 0.35)} Caravan</button>
     <button class="panel-tab ${activeTab === 'pulse' ? 'active' : ''}" onclick="openPanel(pulsePanel)">${iconHTML(REGIONS.sun.icon, 16)} The Pulse [${mK}]</button>
+    <button class="panel-tab ${activeTab === 'tutorial' ? 'active' : ''}" onclick="openPanel(tutorialPanel)">📖 Field Guide</button>
     <button class="panel-tab ${activeTab === 'settings' ? 'active' : ''}" onclick="openPanel(settingsPanel)">⚙ Settings [${oK}]</button>
   </div>`;
 }
